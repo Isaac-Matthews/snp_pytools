@@ -16,7 +16,7 @@
 
 import argparse
 
-from attestation_report import AttestationReport
+from .attestation_report import AttestationReport
 
 
 def main():

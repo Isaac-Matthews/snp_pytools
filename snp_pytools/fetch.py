@@ -19,9 +19,10 @@ import enum
 import os
 
 import requests
-from attestation_report import AttestationReport
 from cryptography import x509
 from cryptography.hazmat.primitives import serialization
+
+from .attestation_report import AttestationReport
 
 # Constants for AMD Key Distribution Service (KDS)
 KDS_CERT_SITE = "https://kdsintf.amd.com"

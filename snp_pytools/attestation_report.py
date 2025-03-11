@@ -17,9 +17,9 @@
 import struct
 from dataclasses import dataclass, fields
 
-from guest_policy import GuestPolicy
-from platform_info import PlatformInfo
-from signature import Signature
+from .guest_policy import GuestPolicy
+from .platform_info import PlatformInfo
+from .signature import Signature
 
 
 @dataclass

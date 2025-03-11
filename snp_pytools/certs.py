@@ -204,13 +204,14 @@ def verify_certificate(cert, key):
         raise ValueError(f"Error verifying certificate: {str(e)}")
 
 
-def verify_report_components(report, cert):
+def verify_report_components(report, cert, verbose=False):
     """
     verify_report_components
     Description: Verify components of an attestation report against a certificate
     Inputs:
         report: Attestation report object
         cert: x509.Certificate object (VCEK)
+        verbose: Whether to print success messages
     Output: bool: True if all components match, False otherwise
     """
     # Check TCB components
@@ -226,9 +227,10 @@ def verify_report_components(report, cert):
         report_value = getattr(report.reported_tcb, component_name.lower())
 
         if cert_value == report_value:
-            print(
-                f"Reported TCB {component_name} from certificate matches the attestation report."
-            )
+            if verbose:
+                print(
+                    f"Reported TCB {component_name} from certificate matches the attestation report."
+                )
         else:
             print(
                 f"Error: Reported TCB {component_name} mismatch. Certificate: {cert_value}, Report: {report_value}"
@@ -240,7 +242,8 @@ def verify_report_components(report, cert):
     report_hwid = report.chip_id.hex()
 
     if cert_hwid == report_hwid:
-        print("Chip ID from certificate matches the attestation report.")
+        if verbose:
+            print("Chip ID from certificate matches the attestation report.")
     else:
         print(
             f"Error: Chip ID mismatch. Certificate: {cert_hwid}, Report: {report_hwid}"
@@ -250,19 +253,20 @@ def verify_report_components(report, cert):
     return True
 
 
-def verify_report(report, cert):
+def verify_report(report, cert, verbose=False):
     """
     verify_report
     Description: Verify an attestation report against a VCEK certificate
     Inputs:
         report: Attestation report object
         cert: x509.Certificate object (VCEK)
+        verbose: Whether to print success messages
     Output: bool: True if verification succeeds, False otherwise
     """
-    if not verify_report_components(report, cert):
+    if not verify_report_components(report, cert, verbose):
         print("Error: The attestation report values do not match the VCEK certificate.")
         return False
-    else:
+    elif verbose:
         print("Report components verified successfully against the VCEK certificate.")
 
     report_bytes = report.to_bytes()
@@ -286,7 +290,8 @@ def verify_report(report, cert):
 
     try:
         public_key.verify(signature, signed_bytes, ec.ECDSA(hashes.SHA384()))
-        print("VCEK signed the Attestation Report!")
+        if verbose:
+            print("VCEK signed the Attestation Report!")
         return True
     except InvalidSignature as e:
         print(f"Error: Invalid signature. Details: {str(e)}")
