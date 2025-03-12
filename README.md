@@ -24,6 +24,7 @@ To print the details of an attestation report:
 ```
 python print_report.py -f path/to/report.bin [-d]
 ```
+or if installed with pip use `snp-print ...`.
 
 - `-f` or `--file`: Path to the attestation report file (default: report.bin)
 - `-d` or `--debug`: Enable debug mode for additional output
@@ -35,12 +36,14 @@ To verify an attestation report against a certificate chain:
 ```
 python verify.py -f path/to/report.bin -c path/to/certs/directory [-d] [-v]
 ```
+or if installed with pip use `snp-verify ...`.
 
 - `-f` or `--file`: Path to the attestation report file (default: report.bin)
 - `-c` or `--certs`: Path to the directory containing certificates (default: ca)
 - `-d` or `--debug`: Enable debug mode for additional output (automatically enables verbose mode)
 - `-v` or `--verbose`: Enable verbose mode for detailed information
 - `-r` or `--reportdata`: Print report data at the end of successful verification
+- `-p` or `--processor`: Processor model (e.g., milan, genoa) used only if no certificates found (default: genoa)
 
 ### Fetching Certificates
 
@@ -50,10 +53,11 @@ To fetch certificates from the AMD Key Distribution Service:
 python fetch.py ca -p PROCESSOR -e ENCODING -d DIRECTORY [--endorser {vcek,vlek}]
 python fetch.py vcek -p PROCESSOR -e ENCODING -d DIRECTORY -r REPORT_PATH
 ```
+or if installed with pip use `snp-fetch ...`.
 
 - `ca`: Fetch ARK and ASK certificates
 - `vcek`: Fetch VCEK certificate
-- `-p` or `--processor`: Processor model (e.g., milan, genoa)
+- `-p` or `--processor`: Processor model (e.g., milan, genoa) (default: genoa)
 - `-e` or `--encoding`: Certificate encoding format (PEM or DER)
 - `-d` or `--directory`: Directory to save the fetched certificates
 - `--endorser`: Endorser type (vcek or vlek) for fetching VCEK or VLEK certificates
@@ -62,15 +66,21 @@ python fetch.py vcek -p PROCESSOR -e ENCODING -d DIRECTORY -r REPORT_PATH
 ## Requirements
 
 - Python 3.6+
-- cryptography library
+- cryptography library >= 39.0.0
 - requests library
 
 ## Installation
 
 1. Clone the repository
-2. Install the required dependencies:
+2. Move into root directory and install
    ```
-   pip install -r requirements.txt
+   pip install .
+   ```
+
+## Uninstallation
+1. Run pip uninstall
+   ```
+   pip uninstall snp_pytools
    ```
 
 ## Acknowledgments
