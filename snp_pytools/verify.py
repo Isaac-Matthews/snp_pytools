@@ -62,7 +62,7 @@ def verify_certificate_chain(certificates, verbose=False):
 
 
 def verify_attestation(
-    report_data,
+    report_bytes,
     certificates_path=None,
     certificates=None,
     debug=False,
@@ -73,20 +73,20 @@ def verify_attestation(
     Verify an SEV-SNP attestation report against certificate chain.
 
     Args:
-        report_data: Binary attestation report data
+        report_bytes: Binary attestation report data
         certificates_path: Path to certificates directory (if certificates not provided)
         certificates: Dictionary of certificates (if already loaded)
         debug: Enable debug mode
         verbose: Print verbose information
 
     Returns:
-        tuple: (report object, certificates dict)
+        tuple: (report object, certificates dict, report data hex string)
 
     Raises:
         ValueError: For verification failures
         FileNotFoundError: If certificates cannot be loaded
     """
-    report = AttestationReport.unpack(report_data, debug=debug)
+    report = AttestationReport.unpack(report_bytes, debug=debug)
     if verbose:
         report.print_details()
 
@@ -118,7 +118,7 @@ def verify_attestation(
             import tempfile
 
             with tempfile.NamedTemporaryFile(delete=False) as temp:
-                temp.write(report_data)
+                temp.write(report_bytes)
                 temp_path = temp.name
 
             # Fetch VCEK certificate using the report
@@ -157,7 +157,7 @@ def verify_attestation(
         print("\n================================================")
         print("\nAll checks passed successfully.")
 
-    return report, certificates
+    return report, certificates, report.report_data.hex()
 
 
 def main():
@@ -219,11 +219,11 @@ def main():
         args.verbose = True
 
     with open(args.file, "rb") as file:
-        binary_data = file.read()
+        report_bytes = file.read()
 
     try:
-        report, _ = verify_attestation(
-            report_data=binary_data,
+        _, _, report_data = verify_attestation(
+            report_bytes=report_bytes,
             certificates_path=args.certs,
             debug=args.debug,
             verbose=args.verbose,
@@ -232,7 +232,7 @@ def main():
 
         if args.reportdata:
             print("\n\n")
-            print(report.report_data.hex())
+            print(report_data)
         return 0  # Success exit code
     except (ValueError, FileNotFoundError) as e:
         print(f"Verification error: {e}")
