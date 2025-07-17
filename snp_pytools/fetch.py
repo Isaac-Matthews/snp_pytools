@@ -19,6 +19,8 @@ import enum
 import os
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from cryptography import x509
 from cryptography.hazmat.primitives import serialization
 
@@ -57,6 +59,27 @@ class CertFormat(enum.Enum):
     PEM = "pem"
     DER = "der"
 
+def create_retry_session(retries=5, backoff_factor=0.1, status_forcelist=(500, 502, 503, 504), timeout=5):
+    """
+    create_retry_session
+    Description: Create a requests session with retry logic
+    Inputs:
+        - retries: int (number of retries)
+        - backoff_factor: float (backoff factor for retries)
+        - status_forcelist: tuple (HTTP status codes to retry on)
+        - timeout: int (default timeout for requests)
+    Output: requests.Session object with retry logic
+    """
+    session = requests.Session()
+    retries = Retry(
+        total=retries,
+        backoff_factor=backoff_factor,
+        status_forcelist=status_forcelist,
+    )
+    adapter = HTTPAdapter(max_retries=retries)
+    session.mount("https://", adapter)
+    session.timeout = timeout
+    return session
 
 def request_ca_kds(processor_model: ProcType, endorser: Endorsement):
     """
@@ -69,7 +92,8 @@ def request_ca_kds(processor_model: ProcType, endorser: Endorsement):
     """
     url = f"{KDS_CERT_SITE}/{endorser.value.lower()}/v1/{processor_model.to_kds_url()}/{KDS_CERT_CHAIN}"
     print(f"Fetching CA from {url}")
-    response = requests.get(url)
+    session = create_retry_session()
+    response = session.get(url, timeout=session.timeout)
 
     if response.status_code == 200:
         certs = x509.load_pem_x509_certificates(response.content)
@@ -155,7 +179,8 @@ def request_vcek_kds(processor_model: ProcType, att_report_path: str):
     )
 
     print(f"Fetching VCEK from {url}")
-    response = requests.get(url)
+    session = create_retry_session()
+    response = session.get(url, timeout=session.timeout)
 
     if response.status_code == 200:
         try:
