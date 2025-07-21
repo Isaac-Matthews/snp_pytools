@@ -83,6 +83,23 @@ def load_certificates(cert_dir):
 
     return certs
 
+def load_crl(crl_path):
+    """
+    load_crl
+    Description: Load a Certificate Revocation List (CRL) from a file
+    Input: crl_path (str): Path to the CRL file
+    Output: x509.CertificateRevocationList: Loaded CRL object
+    """
+    with open(crl_path, "rb") as crl_file:
+        crl_data = crl_file.read()
+        try:
+            return x509.load_der_x509_crl(crl_data)
+        except ValueError:
+            try:
+                return x509.load_pem_x509_crl(crl_data)
+            except ValueError:
+                raise ValueError("Unable to load CRL. It must be in DER or PEM format.")
+
 
 def print_all_certs(certs):
     """
@@ -159,8 +176,8 @@ def print_certificate_fields(cert):
     print(f"Issuer: {cert.issuer.rfc4514_string()}")
     print(f"Version: {cert.version}")
     print(f"Serial Number: {cert.serial_number}")
-    print(f"Not Valid Before: {cert.not_valid_before}")
-    print(f"Not Valid After: {cert.not_valid_after}")
+    print(f"Not Valid Before: {cert.not_valid_before_utc}")
+    print(f"Not Valid After: {cert.not_valid_after_utc}")
     print(
         f"Subject Alternative Names: {get_extension_value(cert, x509.ExtensionOID.SUBJECT_ALTERNATIVE_NAME)}"
     )
@@ -296,3 +313,35 @@ def verify_report(report, cert, verbose=False):
     except InvalidSignature as e:
         print(f"Error: Invalid signature. Details: {str(e)}")
         return False
+
+
+def check_certificate_against_crl(cert, crl, verbose=False):
+    """
+    check_certificate_against_crl
+    Description: Check if a certificate is revoked using a Certificate Revocation List
+    Inputs:
+        cert: x509.Certificate object to check
+        crl: x509.CertificateRevocationList object
+        verbose: Whether to print verbose output
+    Output: bool: True if certificate is NOT revoked, False if it is revoked
+    """
+    # Get the certificate's serial number
+    cert_serial = cert.serial_number
+    
+    # Check if the certificate is in the CRL
+    try:
+        revoked_cert = crl.get_revoked_certificate_by_serial_number(cert_serial)
+        if revoked_cert is not None:
+            if verbose:
+                print(f"Certificate with serial {cert_serial} is REVOKED. Revocation date: {revoked_cert.revocation_date}")
+            return False
+        else:
+            if verbose:
+                print(f"Certificate with serial {cert_serial} is NOT revoked.")
+            return True
+    except Exception as e:
+        if verbose:
+            print(f"Error checking CRL for certificate serial {cert_serial}: {e}")
+        # Fail safely if there are errors in checking the CRL
+        return False
+    return True

@@ -18,8 +18,8 @@ import argparse
 import os
 
 from .attestation_report import AttestationReport
-from .certs import load_certificates, print_all_certs, verify_certificate, verify_report
-from .fetch import CertFormat, Endorsement, ProcType, fetch_ca, fetch_vcek
+from .certs import load_certificates, load_crl, print_all_certs, verify_certificate, verify_report, check_certificate_against_crl
+from .fetch import fetch_ca, fetch_crl, fetch_vcek
 
 
 def verify_certificate_chain(certificates, verbose=False):
@@ -61,10 +61,49 @@ def verify_certificate_chain(certificates, verbose=False):
     return True
 
 
+def verify_certificate_chain_with_crl(certificates, crl=None, verbose=False):
+    """
+    verify_certificate_chain_with_crl
+    Description: Verify the SEV-SNP certificate chain including CRL checks
+    Inputs:
+        certificates: Dictionary containing 'ark', 'ask', and 'vcek' certificates
+        crl: x509.CertificateRevocationList object (optional)
+        verbose: Whether to print verbose output
+    Output: bool: True if certificate chain is valid and no certificates are revoked
+    """
+    # First verify the basic certificate chain
+    if not verify_certificate_chain(certificates, verbose):
+        return False
+    
+    # If CRL is provided, check each certificate against it
+    if crl is not None:
+        if verbose:
+            print("\nChecking certificates against CRL...")
+        
+        # Check ASK certificate (ARK is self-signed and typically not in CRL)
+        ask_cert = certificates["ask"]
+        if not check_certificate_against_crl(ask_cert, crl, verbose):
+            raise ValueError("ASK certificate is revoked according to CRL.")
+        
+        # Check VCEK certificate
+        vcek_cert = certificates["vcek"]
+        if not check_certificate_against_crl(vcek_cert, crl, verbose):
+            raise ValueError("VCEK certificate is revoked according to CRL.")
+        
+        if verbose:
+            print("None of the certificates have been revoked.")
+    else:
+        print("No CRL provided")
+        return False
+
+    return True
+
+
 def verify_attestation(
     report_bytes,
     certificates_path=None,
     certificates=None,
+    crl=None,
     debug=False,
     verbose=False,
     processor_model="genoa",
@@ -76,6 +115,7 @@ def verify_attestation(
         report_bytes: Binary attestation report data
         certificates_path: Path to certificates directory (if certificates not provided)
         certificates: Dictionary of certificates (if already loaded)
+        crl: x509.CertificateRevocationList (if already loaded)
         debug: Enable debug mode
         verbose: Print verbose information
 
@@ -104,6 +144,7 @@ def verify_attestation(
         # Check if certificates exist, if not fetch them
         try:
             certificates = load_certificates(certificates_path)
+            crl = load_crl(certificates_path + "/crl.pem")
         except (ValueError, FileNotFoundError):
             if verbose:
                 print(f"Certificates not found, fetching from AMD KDS...")
@@ -113,6 +154,9 @@ def verify_attestation(
 
             # Fetch ARK and ASK certificates
             fetch_ca(CertFormat.PEM, proc_type, certificates_path, Endorsement.VCEK)
+
+            # Fetch CRL
+            fetch_crl(CertFormat.PEM, proc_type, certificates_path, Endorsement.VCEK)
 
             # Create temporary file path for the attestation report
             import tempfile
@@ -129,6 +173,7 @@ def verify_attestation(
 
             # Now try loading certificates again
             certificates = load_certificates(certificates_path)
+            crl = load_crl(certificates_path + "/crl.pem")
             if verbose:
                 print("Certificates successfully fetched and loaded.")
 
@@ -136,10 +181,9 @@ def verify_attestation(
         print("\nLoaded Certificates:")
         print_all_certs(certificates)
         print("\n================================================")
-        print("\nVerifying certificate chain.")
-
+        print("\nVerifying certificate chain")
     # Verify certificate chain
-    verify_certificate_chain(certificates, verbose)
+    verify_certificate_chain_with_crl(certificates, crl, verbose)
 
     # Check that the report is signed by the VCEK
     if verbose:
