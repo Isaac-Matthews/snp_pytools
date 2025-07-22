@@ -16,6 +16,7 @@
 
 import binascii
 import os
+import datetime
 from enum import Enum
 
 from cryptography import x509
@@ -205,6 +206,29 @@ def print_certificate_fields(cert):
         else:
             print(f"{snp_oid.name}: Unknown format")
 
+def print_crl_fields(crl):
+    """
+    print_crl_fields
+    Description: Print information about a Certificate Revocation List
+    Inputs:
+        crl: x509.CertificateRevocationList object
+    Output: None
+    """
+    print(f"  Issuer: {crl.issuer.rfc4514_string()}")
+    print(f"  Last Update: {crl.last_update_utc}")
+    print(f"  Next Update: {crl.next_update_utc}")
+    
+    revoked_count = len(list(crl))
+    print(f"  Revoked Certificates: {revoked_count}")
+    
+    if revoked_count > 0:
+        print("  Revoked Certificate Details:")
+        for i, revoked_cert in enumerate(crl):
+            if i >= 10:  # Limit output for readability
+                print(f"    ... and {revoked_count - 10} more")
+                break
+            print(f"    Serial: {revoked_cert.serial_number}, Revoked: {revoked_cert.revocation_date_utc}")
+
 
 def verify_certificate(cert, key):
     """
@@ -216,7 +240,6 @@ def verify_certificate(cert, key):
     Output: bool: True if verification succeeds, False otherwise
     """
     try:
-        print(cert.signature_hash_algorithm)
         key.verify(
             cert.signature,
             cert.tbs_certificate_bytes,
@@ -358,6 +381,12 @@ def check_certificate_against_crl(cert, crl, verbose=False):
         verbose: Whether to print verbose output
     Output: bool: True if certificate is NOT revoked, False if it is revoked
     """
+    # Check CRL is current
+    current_time = datetime.datetime.now(datetime.timezone.utc)
+    if crl.next_update_utc and current_time > crl.next_update_utc:
+        print(f"CRL is expired (next update field is {crl.next_update_utc})")
+        return False
+
     # Get the certificate's serial number
     cert_serial = cert.serial_number
     
@@ -365,8 +394,12 @@ def check_certificate_against_crl(cert, crl, verbose=False):
     try:
         revoked_cert = crl.get_revoked_certificate_by_serial_number(cert_serial)
         if revoked_cert is not None:
-            if verbose:
-                print(f"Certificate with serial {cert_serial} is REVOKED. Revocation date: {revoked_cert.revocation_date}")
+            print(f"Certificate with serial {cert_serial} is REVOKED. Revocation date: {revoked_cert.revocation_date}")
+            try:
+                reason_ext = revoked_cert.extensions.get_extension_for_oid(x509.ExtensionOID.CRL_REASON)
+                print(f"  Revocation reason: {reason_ext.value.reason}")
+            except x509.ExtensionNotFound:
+                pass
             return False
         else:
             if verbose:

@@ -18,8 +18,8 @@ import argparse
 import os
 
 from .attestation_report import AttestationReport
-from .certs import load_certificates, load_crl, print_all_certs, verify_certificate, verify_crl, verify_report, check_certificate_against_crl
-from .fetch import fetch_ca, fetch_crl, fetch_vcek, ProcType
+from .certs import load_certificates, load_crl, print_all_certs, print_crl_fields, verify_certificate, verify_crl, verify_report, check_certificate_against_crl
+from .fetch import fetch_ca, fetch_crl, fetch_vcek, ProcType, CertFormat, Endorsement
 
 
 def verify_certificate_chain(certificates, verbose=False):
@@ -71,13 +71,13 @@ def verify_certificate_chain_with_crl(certificates, crl=None, verbose=False):
         verbose: Whether to print verbose output
     Output: bool: True if certificate chain is valid and no certificates are revoked
     """
-    # First verify the basic certificate chain
+    # Verify the basic certificate chain
     if not verify_certificate_chain(certificates, verbose):
         return False
     
     # If CRL is provided, check each certificate against it
     if crl is not None:
-        # Check that the ASK is signed by the ARK
+        # Check that the CRL is signed by the ARK
         ark_cert = certificates["ark"]
         if not verify_crl(crl, ark_cert.public_key()):
             raise ValueError("The CRL is not signed by the ARK.")
@@ -86,12 +86,11 @@ def verify_certificate_chain_with_crl(certificates, crl=None, verbose=False):
         if verbose:
             print("\nChecking certificates against CRL...")
         
-        # Check ASK certificate (do we need to check ASK or is it just VCEK?)
+        # Check ASK certificate against CRL
         ask_cert = certificates["ask"]
         if not check_certificate_against_crl(ask_cert, crl, verbose):
             raise ValueError("ASK certificate is revoked according to CRL.")
-        
-        # Check VCEK certificate
+        # Check VCEK certificate against CRL
         vcek_cert = certificates["vcek"]
         if not check_certificate_against_crl(vcek_cert, crl, verbose):
             raise ValueError("VCEK certificate is revoked according to CRL.")
@@ -197,6 +196,11 @@ def verify_attestation(
     if verbose:
         print("\nLoaded Certificates:")
         print_all_certs(certificates)
+        print("\n================================================")
+    
+    if verbose:
+        print("\nLoaded CRL:")
+        print_crl_fields(crl)
         print("\n================================================")
         print("\nVerifying certificate chain")
     # Verify certificate chain
