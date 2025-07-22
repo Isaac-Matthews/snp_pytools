@@ -15,8 +15,8 @@
 # under the License.
 
 import binascii
-import os
 import datetime
+import os
 from enum import Enum
 
 from cryptography import x509
@@ -84,6 +84,7 @@ def load_certificates(cert_dir):
 
     return certs
 
+
 def load_crl(crl_dir):
     """
     load_crl
@@ -91,14 +92,16 @@ def load_crl(crl_dir):
     Input: crl_dir (str): Path to the directory containing the CRL file
     Output: x509.CertificateRevocationList: Loaded CRL object
     """
-    crl_files = [f for f in os.listdir(crl_dir) if f.startswith('crl')]
-    
+    crl_files = [f for f in os.listdir(crl_dir) if f.startswith("crl")]
+
     if not crl_files:
         raise ValueError("No CRL file found in the specified directory")
-    
+
     if len(crl_files) > 1:
-        raise ValueError(f"Multiple CRL files found: {crl_files}. There should be exactly one.")
-    
+        raise ValueError(
+            f"Multiple CRL files found: {crl_files}. There should be exactly one."
+        )
+
     with open(os.path.join(crl_dir, crl_files[0]), "rb") as crl_file:
         crl_data = crl_file.read()
         try:
@@ -206,6 +209,7 @@ def print_certificate_fields(cert):
         else:
             print(f"{snp_oid.name}: Unknown format")
 
+
 def print_crl_fields(crl):
     """
     print_crl_fields
@@ -217,17 +221,19 @@ def print_crl_fields(crl):
     print(f"  Issuer: {crl.issuer.rfc4514_string()}")
     print(f"  Last Update: {crl.last_update_utc}")
     print(f"  Next Update: {crl.next_update_utc}")
-    
+
     revoked_count = len(list(crl))
     print(f"  Revoked Certificates: {revoked_count}")
-    
+
     if revoked_count > 0:
         print("  Revoked Certificate Details:")
         for i, revoked_cert in enumerate(crl):
             if i >= 10:  # Limit output for readability
                 print(f"    ... and {revoked_count - 10} more")
                 break
-            print(f"    Serial: {revoked_cert.serial_number}, Revoked: {revoked_cert.revocation_date_utc}")
+            print(
+                f"    Serial: {revoked_cert.serial_number}, Revoked: {revoked_cert.revocation_date_utc}"
+            )
 
 
 def verify_certificate(cert, key):
@@ -251,6 +257,7 @@ def verify_certificate(cert, key):
         return False
     except Exception as e:
         raise ValueError(f"Error verifying certificate: {str(e)}")
+
 
 def verify_crl(crl, key):
     """
@@ -389,14 +396,18 @@ def check_certificate_against_crl(cert, crl, verbose=False):
 
     # Get the certificate's serial number
     cert_serial = cert.serial_number
-    
+
     # Check if the certificate is in the CRL
     try:
         revoked_cert = crl.get_revoked_certificate_by_serial_number(cert_serial)
         if revoked_cert is not None:
-            print(f"Certificate with serial {cert_serial} is REVOKED. Revocation date: {revoked_cert.revocation_date}")
+            print(
+                f"Certificate with serial {cert_serial} is REVOKED. Revocation date: {revoked_cert.revocation_date}"
+            )
             try:
-                reason_ext = revoked_cert.extensions.get_extension_for_oid(x509.ExtensionOID.CRL_REASON)
+                reason_ext = revoked_cert.extensions.get_extension_for_oid(
+                    x509.ExtensionOID.CRL_REASON
+                )
                 print(f"  Revocation reason: {reason_ext.value.reason}")
             except x509.ExtensionNotFound:
                 pass

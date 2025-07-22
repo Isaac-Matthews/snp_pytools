@@ -19,10 +19,10 @@ import enum
 import os
 
 import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 from cryptography import x509
 from cryptography.hazmat.primitives import serialization
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 from .attestation_report import AttestationReport
 
@@ -61,7 +61,10 @@ class CertFormat(enum.Enum):
     PEM = "pem"
     DER = "der"
 
-def create_retry_session(retries=5, backoff_factor=0.1, status_forcelist=(500, 502, 503, 504), timeout=5):
+
+def create_retry_session(
+    retries=5, backoff_factor=0.1, status_forcelist=(500, 502, 503, 504), timeout=5
+):
     """
     create_retry_session
     Description: Create a requests session with retry logic
@@ -82,6 +85,7 @@ def create_retry_session(retries=5, backoff_factor=0.1, status_forcelist=(500, 5
     session.mount("https://", adapter)
     session.timeout = timeout
     return session
+
 
 def request_ca_kds(processor_model: ProcType, endorser: Endorsement):
     """
@@ -220,6 +224,7 @@ def fetch_vcek(
     vcek = request_vcek_kds(processor_model, att_report_path)
     write_cert(certs_dir, "VCEK", vcek, encoding, Endorsement.VCEK)
 
+
 def request_crl_kds(processor_model: ProcType, endorser: Endorsement):
     """
     request_crl_kds
@@ -239,6 +244,7 @@ def request_crl_kds(processor_model: ProcType, endorser: Endorsement):
         return crl
     else:
         raise Exception(f"Unable to fetch certificates: {response.status_code}")
+
 
 def fetch_crl(
     encoding: CertFormat,

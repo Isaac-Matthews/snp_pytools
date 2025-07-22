@@ -18,8 +18,17 @@ import argparse
 import os
 
 from .attestation_report import AttestationReport
-from .certs import load_certificates, load_crl, print_all_certs, print_crl_fields, verify_certificate, verify_crl, verify_report, check_certificate_against_crl
-from .fetch import fetch_ca, fetch_crl, fetch_vcek, ProcType, CertFormat, Endorsement
+from .certs import (
+    check_certificate_against_crl,
+    load_certificates,
+    load_crl,
+    print_all_certs,
+    print_crl_fields,
+    verify_certificate,
+    verify_crl,
+    verify_report,
+)
+from .fetch import CertFormat, Endorsement, ProcType, fetch_ca, fetch_crl, fetch_vcek
 
 
 def verify_certificate_chain(certificates, verbose=False):
@@ -74,7 +83,7 @@ def verify_certificate_chain_with_crl(certificates, crl=None, verbose=False):
     # Verify the basic certificate chain
     if not verify_certificate_chain(certificates, verbose):
         return False
-    
+
     # If CRL is provided, check each certificate against it
     if crl is not None:
         # Check that the CRL is signed by the ARK
@@ -85,7 +94,7 @@ def verify_certificate_chain_with_crl(certificates, crl=None, verbose=False):
             print("The CRL is signed by the ARK.")
         if verbose:
             print("\nChecking certificates against CRL...")
-        
+
         # Check ASK certificate against CRL
         ask_cert = certificates["ask"]
         if not check_certificate_against_crl(ask_cert, crl, verbose):
@@ -94,7 +103,7 @@ def verify_certificate_chain_with_crl(certificates, crl=None, verbose=False):
         vcek_cert = certificates["vcek"]
         if not check_certificate_against_crl(vcek_cert, crl, verbose):
             raise ValueError("VCEK certificate is revoked according to CRL.")
-        
+
         if verbose:
             print("None of the certificates have been revoked.")
     else:
@@ -176,7 +185,7 @@ def verify_attestation(
             certificates = load_certificates(certificates_path)
             if verbose:
                 print("Certificates successfully fetched and loaded.")
-        try:    
+        try:
             crl = load_crl(certificates_path)
         except (ValueError, FileNotFoundError):
             if verbose:
@@ -197,7 +206,7 @@ def verify_attestation(
         print("\nLoaded Certificates:")
         print_all_certs(certificates)
         print("\n================================================")
-    
+
     if verbose:
         print("\nLoaded CRL:")
         print_crl_fields(crl)
