@@ -83,14 +83,22 @@ def load_certificates(cert_dir):
 
     return certs
 
-def load_crl(crl_path):
+def load_crl(crl_dir):
     """
     load_crl
     Description: Load a Certificate Revocation List (CRL) from a file
-    Input: crl_path (str): Path to the CRL file
+    Input: crl_dir (str): Path to the directory containing the CRL file
     Output: x509.CertificateRevocationList: Loaded CRL object
     """
-    with open(crl_path, "rb") as crl_file:
+    crl_files = [f for f in os.listdir(crl_dir) if f.startswith('crl')]
+    
+    if not crl_files:
+        raise ValueError("No CRL file found in the specified directory")
+    
+    if len(crl_files) > 1:
+        raise ValueError(f"Multiple CRL files found: {crl_files}. There should be exactly one.")
+    
+    with open(os.path.join(crl_dir, crl_files[0]), "rb") as crl_file:
         crl_data = crl_file.read()
         try:
             return x509.load_der_x509_crl(crl_data)
@@ -208,6 +216,7 @@ def verify_certificate(cert, key):
     Output: bool: True if verification succeeds, False otherwise
     """
     try:
+        print(cert.signature_hash_algorithm)
         key.verify(
             cert.signature,
             cert.tbs_certificate_bytes,
@@ -219,6 +228,30 @@ def verify_certificate(cert, key):
         return False
     except Exception as e:
         raise ValueError(f"Error verifying certificate: {str(e)}")
+
+def verify_crl(crl, key):
+    """
+    verify_crl
+    Description: Verify a certificate revocation list's signature using a public key
+    Inputs:
+        crl: x509.CRL object to verify
+        key: Public key to use for verification
+    Output: bool: True if verification succeeds, False otherwise
+    """
+    try:
+        key.verify(
+            crl.signature,
+            crl.tbs_certlist_bytes,
+            padding=crl.signature_algorithm_parameters,
+            # Manually specify the hash algorithm as currently it does not get recognized
+            # algorithm=crl.signature_hash_algorithm,
+            algorithm=hashes.SHA384(),
+        )
+        return True
+    except InvalidSignature:
+        return False
+    except Exception as e:
+        raise ValueError(f"Error verifying CRL: {str(e)}")
 
 
 def verify_report_components(report, cert, verbose=False):

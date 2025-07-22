@@ -18,8 +18,8 @@ import argparse
 import os
 
 from .attestation_report import AttestationReport
-from .certs import load_certificates, load_crl, print_all_certs, verify_certificate, verify_report, check_certificate_against_crl
-from .fetch import fetch_ca, fetch_crl, fetch_vcek
+from .certs import load_certificates, load_crl, print_all_certs, verify_certificate, verify_crl, verify_report, check_certificate_against_crl
+from .fetch import fetch_ca, fetch_crl, fetch_vcek, ProcType
 
 
 def verify_certificate_chain(certificates, verbose=False):
@@ -77,10 +77,16 @@ def verify_certificate_chain_with_crl(certificates, crl=None, verbose=False):
     
     # If CRL is provided, check each certificate against it
     if crl is not None:
+        # Check that the ASK is signed by the ARK
+        ark_cert = certificates["ark"]
+        if not verify_crl(crl, ark_cert.public_key()):
+            raise ValueError("The CRL is not signed by the ARK.")
+        if verbose:
+            print("The CRL is signed by the ARK.")
         if verbose:
             print("\nChecking certificates against CRL...")
         
-        # Check ASK certificate (ARK is self-signed and typically not in CRL)
+        # Check ASK certificate (do we need to check ASK or is it just VCEK?)
         ask_cert = certificates["ask"]
         if not check_certificate_against_crl(ask_cert, crl, verbose):
             raise ValueError("ASK certificate is revoked according to CRL.")
@@ -144,7 +150,6 @@ def verify_attestation(
         # Check if certificates exist, if not fetch them
         try:
             certificates = load_certificates(certificates_path)
-            crl = load_crl(certificates_path + "/crl.pem")
         except (ValueError, FileNotFoundError):
             if verbose:
                 print(f"Certificates not found, fetching from AMD KDS...")
@@ -154,9 +159,6 @@ def verify_attestation(
 
             # Fetch ARK and ASK certificates
             fetch_ca(CertFormat.PEM, proc_type, certificates_path, Endorsement.VCEK)
-
-            # Fetch CRL
-            fetch_crl(CertFormat.PEM, proc_type, certificates_path, Endorsement.VCEK)
 
             # Create temporary file path for the attestation report
             import tempfile
@@ -173,9 +175,24 @@ def verify_attestation(
 
             # Now try loading certificates again
             certificates = load_certificates(certificates_path)
-            crl = load_crl(certificates_path + "/crl.pem")
             if verbose:
                 print("Certificates successfully fetched and loaded.")
+        try:    
+            crl = load_crl(certificates_path)
+        except (ValueError, FileNotFoundError):
+            if verbose:
+                print(f"CRL not found, fetching from AMD KDS...")
+
+            # Convert processor model to enum
+            proc_type = ProcType[processor_model.upper()]
+
+            # Fetch CRL
+            fetch_crl(CertFormat.PEM, proc_type, certificates_path, Endorsement.VCEK)
+
+            # Now try loading certificates again
+            crl = load_crl(certificates_path)
+            if verbose:
+                print("CRL successfully fetched and loaded.")
 
     if verbose:
         print("\nLoaded Certificates:")
