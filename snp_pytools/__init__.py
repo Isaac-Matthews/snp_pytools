@@ -13,5 +13,5 @@ from .guest_policy import GuestPolicy
 from .platform_info import PlatformInfo
 from .signature import Signature
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __author__ = "Isaac Matthews"
