@@ -19,16 +19,18 @@ import enum
 import os
 
 import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 from cryptography import x509
 from cryptography.hazmat.primitives import serialization
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 from .attestation_report import AttestationReport
 
 # Constants for AMD Key Distribution Service (KDS)
 KDS_CERT_SITE = "https://kdsintf.amd.com"
+KDS_VERSION = "v1"
 KDS_CERT_CHAIN = "cert_chain"
+KDS_CRL = "crl"
 
 
 # Enum classes for various certificate and processor types
@@ -59,7 +61,10 @@ class CertFormat(enum.Enum):
     PEM = "pem"
     DER = "der"
 
-def create_retry_session(retries=5, backoff_factor=0.1, status_forcelist=(500, 502, 503, 504), timeout=5):
+
+def create_retry_session(
+    retries=5, backoff_factor=0.1, status_forcelist=(500, 502, 503, 504), timeout=5
+):
     """
     create_retry_session
     Description: Create a requests session with retry logic
@@ -81,6 +86,7 @@ def create_retry_session(retries=5, backoff_factor=0.1, status_forcelist=(500, 5
     session.timeout = timeout
     return session
 
+
 def request_ca_kds(processor_model: ProcType, endorser: Endorsement):
     """
     request_ca_kds
@@ -90,7 +96,7 @@ def request_ca_kds(processor_model: ProcType, endorser: Endorsement):
         - endorser: Endorsement
     Output: List of x509.Certificate objects
     """
-    url = f"{KDS_CERT_SITE}/{endorser.value.lower()}/v1/{processor_model.to_kds_url()}/{KDS_CERT_CHAIN}"
+    url = f"{KDS_CERT_SITE}/{endorser.value.lower()}/{KDS_VERSION}/{processor_model.to_kds_url()}/{KDS_CERT_CHAIN}"
     print(f"Fetching CA from {url}")
     session = create_retry_session()
     response = session.get(url, timeout=session.timeout)
@@ -171,7 +177,7 @@ def request_vcek_kds(processor_model: ProcType, att_report_path: str):
 
     hw_id = report.chip_id.hex()
     url = (
-        f"{KDS_CERT_SITE}/vcek/v1/{processor_model.to_kds_url()}/"
+        f"{KDS_CERT_SITE}/vcek/{KDS_VERSION}/{processor_model.to_kds_url()}/"
         f"{hw_id}?blSPL={report.reported_tcb.bootloader:02}&"
         f"teeSPL={report.reported_tcb.tee:02}&"
         f"snpSPL={report.reported_tcb.snp:02}&"
@@ -219,6 +225,47 @@ def fetch_vcek(
     write_cert(certs_dir, "VCEK", vcek, encoding, Endorsement.VCEK)
 
 
+def request_crl_kds(processor_model: ProcType, endorser: Endorsement):
+    """
+    request_crl_kds
+    Description: Fetch CRL from AMD KDS
+    Inputs:
+        - processor_model: ProcType
+        - endorser: Endorsement
+    Output: List of x509.Certificate objects
+    """
+    url = f"{KDS_CERT_SITE}/{endorser.value.lower()}/{KDS_VERSION}/{processor_model.to_kds_url()}/{KDS_CRL}"
+    print(f"Fetching CRL from {url}")
+    session = create_retry_session()
+    response = session.get(url, timeout=session.timeout)
+
+    if response.status_code == 200:
+        crl = x509.load_der_x509_crl(response.content)
+        return crl
+    else:
+        raise Exception(f"Unable to fetch certificates: {response.status_code}")
+
+
+def fetch_crl(
+    encoding: CertFormat,
+    processor_model: ProcType,
+    certs_dir: str,
+    endorser: Endorsement,
+):
+    """
+    fetch_crl
+    Description: Fetch and save CRL
+    Inputs:
+        - encoding: CertFormat
+        - processor_model: ProcType
+        - certs_dir: str (directory to save CRL)
+        - endorser: Endorsement
+    Output: None (saves CRL to file)
+    """
+    crl = request_crl_kds(processor_model, endorser)
+    write_cert(certs_dir, "CRL", crl, encoding, endorser)
+
+
 def main():
     """
     main
@@ -230,6 +277,8 @@ def main():
         -d, --dir: Directory to save certificates (default: current directory)
         ca: Subcommand to fetch certificate authority (ARK & ASK)
             --endorser: Endorsement type for CA (choices: vcek, vlek; default: vcek)
+        crl: Subcommand to fetch CRL
+            --endorser: Endorsement type for CRL (choices: vcek, vlek; default: vcek)
         vcek: Subcommand to fetch VCEK
             -r, --report: Path to the attestation report (required for VCEK)
     Output: None (fetches and saves certificates based on user input)
@@ -238,6 +287,7 @@ def main():
         python fetch.py ca -p milan
         python fetch.py ca -p genoa -e der -d /path/to/certs
         python fetch.py ca -p bergamo -e der -d /path/to/certs --endorser vlek
+        python fetch.py crl -p genoa -d /path/to/certs
         python fetch.py vcek -p siena -r report.bin
         python fetch.py vcek -r report.bin
     """
@@ -284,6 +334,20 @@ def main():
         help="Endorsement type (default: vcek)",
     )
 
+    # CRL subcommand
+    crl_parser = subparsers.add_parser(
+        "crl",
+        parents=[common_parser],
+        help="Fetch the CRL from the KDS",
+    )
+    crl_parser.add_argument(
+        "--endorser",
+        type=str,
+        choices=["vcek", "vlek"],
+        default="vcek",
+        help="Endorsement type (default: vcek)",
+    )
+
     # VCEK subcommand
     vcek_parser = subparsers.add_parser(
         "vcek", parents=[common_parser], help="Fetch the VCEK from the KDS"
@@ -301,6 +365,9 @@ def main():
     if args.command == "ca":
         endorser = Endorsement[args.endorser.upper()]
         fetch_ca(encoding, processor_model, args.dir, endorser)
+    elif args.command == "crl":
+        endorser = Endorsement[args.endorser.upper()]
+        fetch_crl(encoding, processor_model, args.dir, endorser)
     elif args.command == "vcek":
         fetch_vcek(encoding, processor_model, args.dir, args.report)
 

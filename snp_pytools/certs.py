@@ -15,6 +15,7 @@
 # under the License.
 
 import binascii
+import datetime
 import os
 from enum import Enum
 
@@ -82,6 +83,34 @@ def load_certificates(cert_dir):
         )
 
     return certs
+
+
+def load_crl(crl_dir):
+    """
+    load_crl
+    Description: Load a Certificate Revocation List (CRL) from a file
+    Input: crl_dir (str): Path to the directory containing the CRL file
+    Output: x509.CertificateRevocationList: Loaded CRL object
+    """
+    crl_files = [f for f in os.listdir(crl_dir) if f.startswith("crl")]
+
+    if not crl_files:
+        raise ValueError("No CRL file found in the specified directory")
+
+    if len(crl_files) > 1:
+        raise ValueError(
+            f"Multiple CRL files found: {crl_files}. There should be exactly one."
+        )
+
+    with open(os.path.join(crl_dir, crl_files[0]), "rb") as crl_file:
+        crl_data = crl_file.read()
+        try:
+            return x509.load_der_x509_crl(crl_data)
+        except ValueError:
+            try:
+                return x509.load_pem_x509_crl(crl_data)
+            except ValueError:
+                raise ValueError("Unable to load CRL. It must be in DER or PEM format.")
 
 
 def print_all_certs(certs):
@@ -159,8 +188,8 @@ def print_certificate_fields(cert):
     print(f"Issuer: {cert.issuer.rfc4514_string()}")
     print(f"Version: {cert.version}")
     print(f"Serial Number: {cert.serial_number}")
-    print(f"Not Valid Before: {cert.not_valid_before}")
-    print(f"Not Valid After: {cert.not_valid_after}")
+    print(f"Not Valid Before: {cert.not_valid_before_utc}")
+    print(f"Not Valid After: {cert.not_valid_after_utc}")
     print(
         f"Subject Alternative Names: {get_extension_value(cert, x509.ExtensionOID.SUBJECT_ALTERNATIVE_NAME)}"
     )
@@ -179,6 +208,32 @@ def print_certificate_fields(cert):
             print(f"{snp_oid.name}: {value}")
         else:
             print(f"{snp_oid.name}: Unknown format")
+
+
+def print_crl_fields(crl):
+    """
+    print_crl_fields
+    Description: Print information about a Certificate Revocation List
+    Inputs:
+        crl: x509.CertificateRevocationList object
+    Output: None
+    """
+    print(f"  Issuer: {crl.issuer.rfc4514_string()}")
+    print(f"  Last Update: {crl.last_update_utc}")
+    print(f"  Next Update: {crl.next_update_utc}")
+
+    revoked_count = len(list(crl))
+    print(f"  Revoked Certificates: {revoked_count}")
+
+    if revoked_count > 0:
+        print("  Revoked Certificate Details:")
+        for i, revoked_cert in enumerate(crl):
+            if i >= 10:  # Limit output for readability
+                print(f"    ... and {revoked_count - 10} more")
+                break
+            print(
+                f"    Serial: {revoked_cert.serial_number}, Revoked: {revoked_cert.revocation_date_utc}"
+            )
 
 
 def verify_certificate(cert, key):
@@ -202,6 +257,31 @@ def verify_certificate(cert, key):
         return False
     except Exception as e:
         raise ValueError(f"Error verifying certificate: {str(e)}")
+
+
+def verify_crl(crl, key):
+    """
+    verify_crl
+    Description: Verify a certificate revocation list's signature using a public key
+    Inputs:
+        crl: x509.CRL object to verify
+        key: Public key to use for verification
+    Output: bool: True if verification succeeds, False otherwise
+    """
+    try:
+        key.verify(
+            crl.signature,
+            crl.tbs_certlist_bytes,
+            padding=crl.signature_algorithm_parameters,
+            # Manually specify the hash algorithm as currently it does not get recognized
+            # algorithm=crl.signature_hash_algorithm,
+            algorithm=hashes.SHA384(),
+        )
+        return True
+    except InvalidSignature:
+        return False
+    except Exception as e:
+        raise ValueError(f"Error verifying CRL: {str(e)}")
 
 
 def verify_report_components(report, cert, verbose=False):
@@ -296,3 +376,49 @@ def verify_report(report, cert, verbose=False):
     except InvalidSignature as e:
         print(f"Error: Invalid signature. Details: {str(e)}")
         return False
+
+
+def check_certificate_against_crl(cert, crl, verbose=False):
+    """
+    check_certificate_against_crl
+    Description: Check if a certificate is revoked using a Certificate Revocation List
+    Inputs:
+        cert: x509.Certificate object to check
+        crl: x509.CertificateRevocationList object
+        verbose: Whether to print verbose output
+    Output: bool: True if certificate is NOT revoked, False if it is revoked
+    """
+    # Check CRL is current
+    current_time = datetime.datetime.now(datetime.timezone.utc)
+    if crl.next_update_utc and current_time > crl.next_update_utc:
+        print(f"CRL is expired (next update field is {crl.next_update_utc})")
+        return False
+
+    # Get the certificate's serial number
+    cert_serial = cert.serial_number
+
+    # Check if the certificate is in the CRL
+    try:
+        revoked_cert = crl.get_revoked_certificate_by_serial_number(cert_serial)
+        if revoked_cert is not None:
+            print(
+                f"Certificate with serial {cert_serial} is REVOKED. Revocation date: {revoked_cert.revocation_date}"
+            )
+            try:
+                reason_ext = revoked_cert.extensions.get_extension_for_oid(
+                    x509.ExtensionOID.CRL_REASON
+                )
+                print(f"  Revocation reason: {reason_ext.value.reason}")
+            except x509.ExtensionNotFound:
+                pass
+            return False
+        else:
+            if verbose:
+                print(f"Certificate with serial {cert_serial} is NOT revoked.")
+            return True
+    except Exception as e:
+        if verbose:
+            print(f"Error checking CRL for certificate serial {cert_serial}: {e}")
+        # Fail safely if there are errors in checking the CRL
+        return False
+    return True

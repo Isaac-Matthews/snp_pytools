@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
 setup(
     name="snp_pytools",
@@ -9,10 +9,10 @@ setup(
         "cryptography>=39.0.0",
     ],
     entry_points={
-        'console_scripts': [
-            'snp-fetch=snp_pytools.fetch:main',
-            'snp-print=snp_pytools.print_report:main',
-            'snp-verify=snp_pytools.verify:main',
+        "console_scripts": [
+            "snp-fetch=snp_pytools.fetch:main",
+            "snp-print=snp_pytools.print_report:main",
+            "snp-verify=snp_pytools.verify:main",
         ],
     },
     description="Python tools for AMD SEV-SNP attestation",
