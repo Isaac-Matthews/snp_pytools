@@ -161,7 +161,11 @@ def fetch_ca(
     write_cert(certs_dir, "ASK", ask_cert, encoding, endorser)
 
 
-def request_vcek_kds(processor_model: ProcType, att_report_path: str):
+def request_vcek_kds(
+    processor_model: ProcType,
+    att_report_path: str = None,
+    report: AttestationReport = None,
+):
     """
     request_vcek_kds
     Description: Fetch VCEK certificate from AMD KDS
@@ -170,10 +174,29 @@ def request_vcek_kds(processor_model: ProcType, att_report_path: str):
         - att_report_path: str (path to attestation report file)
     Output: x509.Certificate
     """
-    with open(att_report_path, "rb") as file:
-        binary_data = file.read()
+    if report is None:
+        if att_report_path is None:
+            att_report_path = "report.bin"
+        try:
+            with open(att_report_path, "rb") as file:
+                binary_data = file.read()
 
-    report = AttestationReport.unpack(binary_data)
+            if not binary_data:
+                raise ValueError(f"Attestation report file is empty: {att_report_path}")
+
+            report = AttestationReport.unpack(binary_data)
+        except FileNotFoundError:
+            raise FileNotFoundError(
+                f"Attestation report file not found: {att_report_path}"
+            )
+        except PermissionError:
+            raise PermissionError(
+                f"Permission denied reading attestation report: {att_report_path}"
+            )
+        except Exception as e:
+            raise ValueError(
+                f"Error reading or parsing attestation report from {att_report_path}: {str(e)}"
+            )
 
     hw_id = report.chip_id.hex()
     url = (
