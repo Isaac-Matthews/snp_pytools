@@ -87,6 +87,41 @@ def create_retry_session(
     return session
 
 
+def cpuid_to_processor_type(cpuid) -> ProcType:
+    """
+    cpuid_to_processor_type
+    Description: Convert CPUID information to processor type
+    Input: cpuid (Cpuid object from attestation report)
+    Output: ProcType enum value
+    """
+    # AMD Zen architecture family mapping
+    # Family 0x19 (25 decimal) covers most modern AMD processors
+    if cpuid.family_id == b"\x19":
+        # Model ID determines the specific processor generation
+        if cpuid.model_id in [b"\x00", b"\x01", b"\x08"]:  # Milan
+            return ProcType.MILAN
+        elif cpuid.model_id in [b"\x10", b"\x11", b"\x18"]:  # Genoa
+            return ProcType.GENOA
+        elif cpuid.model_id in [b"\xa0", b"\xa1"]:  # Bergamo
+            return ProcType.BERGAMO
+        elif cpuid.model_id in [b"\xb0", b"\xb1"]:  # Siena
+            return ProcType.SIENA
+
+    raise ValueError(
+        f"Unknown processor type: Family={cpuid.family_id.hex()}, Model={cpuid.model_id.hex()}, Stepping={cpuid.stepping.hex()}"
+    )
+
+
+def detect_processor_from_report(report: AttestationReport) -> ProcType:
+    """
+    detect_processor_from_report
+    Description: Detect processor type from attestation report
+    Input: report (AttestationReport object)
+    Output: ProcType enum value
+    """
+    return cpuid_to_processor_type(report.cpuid)
+
+
 def request_ca_kds(processor_model: ProcType, endorser: Endorsement):
     """
     request_ca_kds
