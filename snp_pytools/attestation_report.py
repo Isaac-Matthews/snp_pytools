@@ -37,6 +37,19 @@ class TcbVersion:
 
 
 @dataclass
+class Cpuid:
+    """
+    Cpuid
+    Description: Represents CPUID information from the attestation report
+    """
+
+    family_id: bytes  # CPUID_FAM_ID - Combined Extended Family ID and Family ID
+    model_id: bytes  # CPUID_MOD_ID - Model (combined Extended Model and Model fields)
+    stepping: bytes  # CPUID_STEP - Stepping
+    _reserved: bytes  # Reserved
+
+
+@dataclass
 class AttestationReport:
     """
     AttestationReport
@@ -62,19 +75,19 @@ class AttestationReport:
     report_id: bytes
     report_id_ma: bytes
     reported_tcb: TcbVersion
-    _reserved_1: bytes
+    cpuid: Cpuid
     chip_id: bytes
     committed_tcb: TcbVersion
     current_build: int
     current_minor: int
     current_major: int
-    _reserved_2: int
+    _reserved_1: int
     committed_build: int
     committed_minor: int
     committed_major: int
-    _reserved_3: int
+    _reserved_2: int
     launch_tcb: TcbVersion
-    _reserved_4: bytes
+    _reserved_3: bytes
     signature: Signature
 
     format_string = (
@@ -98,19 +111,19 @@ class AttestationReport:
         "32s"  # report_id: [u8; 32]
         "32s"  # report_id_ma: [u8; 32]
         "BB4sBB"  # reported_tcb: TcbVersion
-        "24s"  # _reserved_1: [u8; 24]
+        "ccc21s"  # cpuid: Cpuid (cpuid_fam_id: u8, cpuid_mod_id: u8, cpuid_step: u8, reserved: [u8; 21])
         "64s"  # chip_id: [u8; 64]
         "BB4sBB"  # committed_tcb: TcbVersion
         "B"  # current_build: u8
         "B"  # current_minor: u8
         "B"  # current_major: u8
-        "B"  # _reserved_2: u8
+        "B"  # _reserved_1: u8
         "B"  # committed_build: u8
         "B"  # committed_minor: u8
         "B"  # committed_major: u8
-        "B"  # _reserved_3: u8
+        "B"  # _reserved_2: u8
         "BB4sBB"  # launch_tcb: TcbVersion
-        "168s"  # _reserved_4: [u8; 168]
+        "168s"  # _reserved_3: [u8; 168]
         "512s"  # signature: Signature
     )
 
@@ -150,7 +163,10 @@ class AttestationReport:
             self.reported_tcb._reserved,
             self.reported_tcb.snp,
             self.reported_tcb.microcode,
-            self._reserved_1,
+            self.cpuid.family_id,
+            self.cpuid.model_id,
+            self.cpuid.stepping,
+            self.cpuid._reserved,
             self.chip_id,
             self.committed_tcb.bootloader,
             self.committed_tcb.tee,
@@ -160,17 +176,17 @@ class AttestationReport:
             self.current_build,
             self.current_minor,
             self.current_major,
-            self._reserved_2,
+            self._reserved_1,
             self.committed_build,
             self.committed_minor,
             self.committed_major,
-            self._reserved_3,
+            self._reserved_2,
             self.launch_tcb.bootloader,
             self.launch_tcb.tee,
             self.launch_tcb._reserved,
             self.launch_tcb.snp,
             self.launch_tcb.microcode,
-            self._reserved_4,
+            self._reserved_3,
             self.signature.to_bytes(),
         )
 
@@ -220,24 +236,24 @@ class AttestationReport:
             reported_tcb=TcbVersion(
                 unpacked[22], unpacked[23], unpacked[24], unpacked[25], unpacked[26]
             ),
-            _reserved_1=unpacked[27],
-            chip_id=unpacked[28],
+            cpuid=Cpuid(unpacked[27], unpacked[28], unpacked[29], unpacked[30]),
+            chip_id=unpacked[31],
             committed_tcb=TcbVersion(
-                unpacked[29], unpacked[30], unpacked[31], unpacked[32], unpacked[33]
+                unpacked[32], unpacked[33], unpacked[34], unpacked[35], unpacked[36]
             ),
-            current_build=unpacked[34],
-            current_minor=unpacked[35],
-            current_major=unpacked[36],
-            _reserved_2=unpacked[37],
-            committed_build=unpacked[38],
-            committed_minor=unpacked[39],
-            committed_major=unpacked[40],
-            _reserved_3=unpacked[41],
+            current_build=unpacked[37],
+            current_minor=unpacked[38],
+            current_major=unpacked[39],
+            _reserved_1=unpacked[40],
+            committed_build=unpacked[41],
+            committed_minor=unpacked[42],
+            committed_major=unpacked[43],
+            _reserved_2=unpacked[44],
             launch_tcb=TcbVersion(
-                unpacked[42], unpacked[43], unpacked[44], unpacked[45], unpacked[46]
+                unpacked[45], unpacked[46], unpacked[47], unpacked[48], unpacked[49]
             ),
-            _reserved_4=unpacked[47],
-            signature=Signature.from_bytes(unpacked[48]),
+            _reserved_3=unpacked[50],
+            signature=Signature.from_bytes(unpacked[51]),
         )
 
     def print_details(self):
@@ -299,6 +315,12 @@ class AttestationReport:
         print(f"  Reserved:                  {self.reported_tcb._reserved.hex()}")
         print(f"  SNP:                       {self.reported_tcb.snp}")
         print(f"  Microcode:                 {self.reported_tcb.microcode}")
+
+        print(f"\nCPUID:")
+        print(f"  Family ID:                 {self.cpuid.family_id.hex()}")
+        print(f"  Model ID:                  {self.cpuid.model_id.hex()}")
+        print(f"  Stepping:                  {self.cpuid.stepping.hex()}")
+        print(f"  Reserved:                  {self.cpuid._reserved.hex()}")
 
         print(f"\nChip ID:                     {self.chip_id.hex()}")
 
