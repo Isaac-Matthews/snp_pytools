@@ -17,6 +17,8 @@
 import argparse
 import os
 
+from cryptography import x509
+
 from .attestation_report import AttestationReport
 from .certs import (
     check_certificate_against_crl,
@@ -81,8 +83,7 @@ def verify_certificate_chain_with_crl(certificates, crl=None, verbose=False):
     Output: bool: True if certificate chain is valid and no certificates are revoked
     """
     # Verify the basic certificate chain
-    if not verify_certificate_chain(certificates, verbose):
-        return False
+    verify_certificate_chain(certificates, verbose)
 
     # If CRL is provided, check each certificate against it
     if crl is not None:
@@ -107,7 +108,8 @@ def verify_certificate_chain_with_crl(certificates, crl=None, verbose=False):
         if verbose:
             print("None of the certificates have been revoked.")
     else:
-        print("No CRL provided")
+        if verbose:
+            print("No CRL provided")
         return False
 
     return True
@@ -185,6 +187,9 @@ def verify_attestation(
             certificates = load_certificates(certificates_path)
             if verbose:
                 print("Certificates successfully fetched and loaded.")
+
+    # Load CRL if not provided
+    if crl is None:
         try:
             crl = load_crl(certificates_path)
         except (ValueError, FileNotFoundError):
@@ -197,7 +202,7 @@ def verify_attestation(
             # Fetch CRL
             fetch_crl(CertFormat.PEM, proc_type, certificates_path, Endorsement.VCEK)
 
-            # Now try loading certificates again
+            # Now try loading CRL again
             crl = load_crl(certificates_path)
             if verbose:
                 print("CRL successfully fetched and loaded.")
@@ -211,6 +216,26 @@ def verify_attestation(
         print("\nLoaded CRL:")
         print_crl_fields(crl)
         print("\n================================================")
+
+    verify_attestation_report(
+        report=report,
+        certificates=certificates,
+        crl=crl,
+        verbose=verbose,
+    )
+    return report, certificates, report.report_data.hex()
+
+
+def verify_attestation_report(
+    report: AttestationReport,
+    certificates: dict,
+    crl: x509.CertificateRevocationList,
+    verbose: bool = False,
+) -> bool:
+    """
+    Verify an SEV-SNP attestation report against a certificate chain and CRL.
+    """
+    if verbose:
         print("\nVerifying certificate chain")
     # Verify certificate chain
     verify_certificate_chain_with_crl(certificates, crl, verbose)
@@ -230,8 +255,7 @@ def verify_attestation(
         print("Report verified successfully against the VCEK certificate.")
         print("\n================================================")
         print("\nAll checks passed successfully.")
-
-    return report, certificates, report.report_data.hex()
+    return True
 
 
 def main():
