@@ -236,6 +236,12 @@ def verify_attestation_report(
     Verify an SEV-SNP attestation report against a certificate chain and CRL.
     """
     if verbose:
+        print("\n================================================")
+        print("\nReport to be verified:")
+        report.print_details()
+        print("\n================================================")
+
+    if verbose:
         print("\nVerifying certificate chain")
     # Verify certificate chain
     verify_certificate_chain_with_crl(certificates, crl, verbose)

@@ -278,6 +278,7 @@ class AttestationReport:
         print(f"  MEM AES 256 XTS:           {self.policy.mem_aes_256_xts}")
         print(f"  RAPL Disabled:             {self.policy.rapl_dis}")
         print(f"  Ciphertext Hiding:         {self.policy.ciphertext_hiding}")
+        print(f"  Page Swap Disabled:        {self.policy.page_swap_disable}")
 
         print(f"\nFamily ID:                   {self.family_id.hex()}")
         print(f"Image ID:                    {self.image_id.hex()}")
@@ -299,6 +300,8 @@ class AttestationReport:
         print(
             f"  Ciphertext Hiding Enabled: {self.plat_info.ciphertext_hiding_enabled}"
         )
+        print(f"  Alias Check Complete:      {self.plat_info.alias_check_complete}")
+        print(f"  TIO Enabled:               {self.plat_info.tio_enabled}")
 
         print(f"\nAuthor Key Enabled:          {self._author_key_en}")
         print(f"Report Data:                 {self.report_data.hex()}")
