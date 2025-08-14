@@ -15,12 +15,15 @@
 # under the License.
 
 import argparse
+import json
 import os
+import struct
 
 from cryptography import x509
 
 from .attestation_report import AttestationReport
 from .certs import (
+    cert_verify_report,
     check_certificate_against_crl,
     load_certificates,
     load_crl,
@@ -28,9 +31,31 @@ from .certs import (
     print_crl_fields,
     verify_certificate,
     verify_crl,
-    verify_report,
 )
 from .fetch import CertFormat, Endorsement, ProcType, fetch_ca, fetch_crl, fetch_vcek
+from .policy import (
+    AttestationPolicy,
+    PolicyValidationError,
+    validate_report_with_policy,
+)
+
+# Constants for formatting
+SEPARATOR = "=" * 60
+
+
+def print_section_header(title: str, verbose: bool = True) -> None:
+    """Print a formatted section header."""
+    if verbose:
+        print(f"\n{SEPARATOR}")
+        print(f"{title}")
+        print(SEPARATOR)
+
+
+def print_subsection_header(title: str, verbose: bool = True) -> None:
+    """Print a formatted subsection header."""
+    if verbose:
+        print(f"\n{title}")
+        print("-" * len(title))
 
 
 def verify_certificate_chain(certificates, verbose=False):
@@ -52,21 +77,21 @@ def verify_certificate_chain(certificates, verbose=False):
     if not verify_certificate(ark_cert, ark_cert.public_key()):
         raise ValueError("The ARK is not self-signed.")
     if verbose:
-        print("The ARK is self-signed.")
+        print("✓ The ARK is self-signed.")
 
     # Check that the ASK is signed by the ARK
     ask_cert = certificates["ask"]
     if not verify_certificate(ask_cert, ark_cert.public_key()):
         raise ValueError("The ASK is not signed by the ARK.")
     if verbose:
-        print("The ASK is signed by the ARK.")
+        print("✓ The ASK is signed by the ARK.")
 
     # Check that the VCEK is signed by the ASK
     vcek_cert = certificates["vcek"]
     if not verify_certificate(vcek_cert, ask_cert.public_key()):
         raise ValueError("The VCEK is not signed by the ASK.")
     if verbose:
-        print("The VCEK is signed by the ASK.")
+        print("✓ The VCEK is signed by the ASK.")
         print("Certificate chain verified successfully.")
 
     return True
@@ -92,9 +117,9 @@ def verify_certificate_chain_with_crl(certificates, crl=None, verbose=False):
         if not verify_crl(crl, ark_cert.public_key()):
             raise ValueError("The CRL is not signed by the ARK.")
         if verbose:
-            print("The CRL is signed by the ARK.")
+            print("✓ The CRL is signed by the ARK.")
         if verbose:
-            print("\nChecking certificates against CRL...")
+            print_subsection_header("Checking Certificates Against CRL", verbose)
 
         # Check ASK certificate against CRL
         ask_cert = certificates["ask"]
@@ -106,7 +131,7 @@ def verify_certificate_chain_with_crl(certificates, crl=None, verbose=False):
             raise ValueError("VCEK certificate is revoked according to CRL.")
 
         if verbose:
-            print("None of the certificates have been revoked.")
+            print("✓ None of the certificates have been revoked.")
     else:
         if verbose:
             print("No CRL provided")
@@ -115,7 +140,7 @@ def verify_certificate_chain_with_crl(certificates, crl=None, verbose=False):
     return True
 
 
-def verify_attestation(
+def verify_attestation_bytes(
     report_bytes,
     certificates_path=None,
     certificates=None,
@@ -123,6 +148,7 @@ def verify_attestation(
     debug=False,
     verbose=False,
     processor_model="genoa",
+    policy_path=None,
 ):
     """
     Verify an SEV-SNP attestation report against certificate chain.
@@ -134,6 +160,8 @@ def verify_attestation(
         crl: x509.CertificateRevocationList (if already loaded)
         debug: Enable debug mode
         verbose: Print verbose information
+        processor_model: Processor model for fetching certificates (default: "genoa")
+        policy_path: Path to the policy file (if not provided, no policy validation will be performed)
 
     Returns:
         tuple: (report object, certificates dict, report data hex string)
@@ -186,7 +214,7 @@ def verify_attestation(
             # Now try loading certificates again
             certificates = load_certificates(certificates_path)
             if verbose:
-                print("Certificates successfully fetched and loaded.")
+                print("✓ Certificates successfully fetched and loaded.")
 
     # Load CRL if not provided
     if crl is None:
@@ -205,28 +233,41 @@ def verify_attestation(
             # Now try loading CRL again
             crl = load_crl(certificates_path)
             if verbose:
-                print("CRL successfully fetched and loaded.")
+                print("✓ CRL successfully fetched and loaded.")
 
     if verbose:
-        print("\nLoaded Certificates:")
+        print_subsection_header("Loaded Certificates:", verbose)
         print_all_certs(certificates)
-        print("\n================================================")
 
     if verbose:
-        print("\nLoaded CRL:")
+        print_subsection_header("Loaded CRL:", verbose)
         print_crl_fields(crl)
-        print("\n================================================")
 
-    verify_attestation_report(
-        report=report,
-        certificates=certificates,
-        crl=crl,
-        verbose=verbose,
-    )
+    # If policy validation is required, validate the report against the policy
+    if policy_path:
+        try:
+            policy = AttestationPolicy(policy_file=policy_path)
+        except FileNotFoundError:
+            raise ValueError(f"Policy file not found: {policy_path}")
+        verify_attestation_report(
+            report=report,
+            certificates=certificates,
+            crl=crl,
+            policy=policy,
+            verbose=verbose,
+        )
+    else:
+        cert_verify_attestation_report(
+            report=report,
+            certificates=certificates,
+            crl=crl,
+            verbose=verbose,
+        )
+
     return report, certificates, report.report_data.hex()
 
 
-def verify_attestation_report(
+def cert_verify_attestation_report(
     report: AttestationReport,
     certificates: dict,
     crl: x509.CertificateRevocationList,
@@ -236,31 +277,66 @@ def verify_attestation_report(
     Verify an SEV-SNP attestation report against a certificate chain and CRL.
     """
     if verbose:
-        print("\n================================================")
-        print("\nReport to be verified:")
-        report.print_details()
-        print("\n================================================")
+        print_section_header("CERTIFICATE VERIFICATION", verbose)
 
     if verbose:
-        print("\nVerifying certificate chain")
+        print_subsection_header("Verifying Certificate Chain", verbose)
     # Verify certificate chain
     verify_certificate_chain_with_crl(certificates, crl, verbose)
 
     # Check that the report is signed by the VCEK
     if verbose:
-        print("\n================================================")
-        print("\nVerifying attestation report.")
+        print_subsection_header("Verifying Attestation Report Signature", verbose)
 
     vcek_cert = certificates["vcek"]
-    if not verify_report(report, vcek_cert, verbose):
+    if not cert_verify_report(report, vcek_cert, verbose):
         raise ValueError(
             "The attestation report failed verification against the VCEK certificate."
         )
 
     if verbose:
-        print("Report verified successfully against the VCEK certificate.")
-        print("\n================================================")
-        print("\nAll checks passed successfully.")
+        print("\n✓ Report verified successfully against the VCEK certificate.")
+        print("All certificate checks passed successfully.")
+    return True
+
+
+def policy_verify_attestation_report(
+    report: AttestationReport,
+    policy: dict,
+    report_data: bytes = None,
+    verbose: bool = False,
+) -> bool:
+    """
+    Verify an SEV-SNP attestation report against a policy.
+    """
+    if verbose:
+        print_section_header("POLICY VALIDATION", verbose)
+
+    # Validate report against policy
+    if not policy.validate_report(report, report_data, verbose):
+        raise ValueError(
+            "The attestation report failed verification against the policy."
+        )
+
+    if verbose:
+        print("\n✓ Report verified successfully against the policy.")
+        print("All Policy checks passed successfully.")
+    return True
+
+
+def verify_attestation_report(
+    report: AttestationReport,
+    certificates: dict,
+    crl: x509.CertificateRevocationList,
+    policy: dict,
+    report_data: bytes = None,
+    verbose: bool = False,
+) -> bool:
+    """
+    Verify an SEV_SNP attestation report against certificates, crl, and policy.
+    """
+    cert_verify_attestation_report(report, certificates, crl, verbose)
+    policy_verify_attestation_report(report, policy, report_data, verbose)
     return True
 
 
@@ -276,6 +352,7 @@ def main():
         -c, --certs: Path to the certs directory (default: ca)
         -r, --reportdata: Print report data at the end of successful verification (flag, default: False)
         -p, --processor: Processor model for certificate fetching, only used if certs are not provided (choices: milan, genoa, bergamo, siena; default: genoa)
+        -q, --policy: Path to the policy file (default: example_policy.json)
     Output: None (prints verification results to console and exits with status code)
     Examples:
         python verify.py
@@ -316,6 +393,12 @@ def main():
         choices=["milan", "genoa", "bergamo", "siena"],
         help="Processor model for certificate fetching (default: genoa)",
     )
+    parser.add_argument(
+        "-q",
+        "--policy",
+        default=None,
+        help="Path to the policy file (eg. example_policy.json). If not provided, no policy validation will be performed.",
+    )
     args = parser.parse_args()
 
     # If debug mode is on, automatically enable verbose mode
@@ -326,20 +409,40 @@ def main():
         report_bytes = file.read()
 
     try:
-        _, _, report_data = verify_attestation(
+        _, _, report_data = verify_attestation_bytes(
             report_bytes=report_bytes,
             certificates_path=args.certs,
             debug=args.debug,
             verbose=args.verbose,
             processor_model=args.processor,
+            policy_path=args.policy,
         )
+        if args.policy:
+            print_section_header("VERIFICATION COMPLETE", True)
+            print(
+                "SUCCESS: Attestation report successfully verified against certificates and policy."
+            )
+        else:
+            print_section_header("VERIFICATION COMPLETE", True)
+            print(
+                "SUCCESS: Attestation report successfully verified against certificates."
+            )
 
         if args.reportdata:
-            print("\n\n")
-            print(report_data)
+            print_subsection_header("Report Data", True)
+            print(f"Report Data (hex): \n{report_data}")
         return 0  # Success exit code
-    except (ValueError, FileNotFoundError) as e:
+    except (
+        ValueError,
+        FileNotFoundError,
+        PolicyValidationError,
+        json.JSONDecodeError,
+        OSError,
+    ) as e:
         print(f"Verification error: {e}")
+        return 1  # Error exit code
+    except Exception as e:
+        print(f"Unexpected error: {e}")
         return 1  # Error exit code
 
 
