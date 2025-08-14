@@ -106,8 +106,22 @@ class AttestationPolicy:
             if verbose:
                 print(f"\nValidating provided report_data against attestation report")
 
-            if report.report_data != report_data:
-                error_msg = f"Report data mismatch: expected {report_data.hex()}, got {report.report_data.hex()}"
+            # Convert report_data to bytes if it's a string (hex format)
+            if isinstance(report_data, str):
+                try:
+                    # Remove any hex prefix and convert to bytes
+                    hex_string = self._normalize_hex_string(report_data)
+                    report_data_bytes = bytes.fromhex(hex_string)
+                except ValueError as e:
+                    error_msg = f"Invalid hex string format for report_data: {e}"
+                    if verbose:
+                        print(f"  {error_msg}")
+                    raise PolicyValidationError(error_msg)
+            else:
+                report_data_bytes = report_data
+
+            if report.report_data != report_data_bytes:
+                error_msg = f"Report data mismatch: expected {report_data_bytes.hex()}, got {report.report_data.hex()}"
                 if verbose:
                     print(f"  {error_msg}")
                 raise PolicyValidationError(error_msg)

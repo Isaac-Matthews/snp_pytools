@@ -302,7 +302,7 @@ def cert_verify_attestation_report(
 
 def policy_verify_attestation_report(
     report: AttestationReport,
-    policy: dict,
+    policy: AttestationPolicy,
     report_data: bytes = None,
     verbose: bool = False,
 ) -> bool:
@@ -328,7 +328,7 @@ def verify_attestation_report(
     report: AttestationReport,
     certificates: dict,
     crl: x509.CertificateRevocationList,
-    policy: dict,
+    policy: AttestationPolicy,
     report_data: bytes = None,
     verbose: bool = False,
 ) -> bool:
