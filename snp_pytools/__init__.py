@@ -1,17 +1,99 @@
 """
 snp_pytools - Python tools for AMD SEV-SNP attestation
+
+This package provides tools for working with AMD SEV-SNP attestation reports,
+including parsing, verification, policy validation, and certificate management.
 """
 
-from .attestation_report import AttestationReport, TcbVersion
+# Core attestation report components
+from .attestation_report import AttestationReport, Cpuid, TcbVersion
+
+# Certificate and verification functions
 from .certs import (
+    cert_verify_report,
+    cert_verify_report_components,
+    check_certificate_against_crl,
     load_certificates,
+    load_crl,
+    print_all_certs,
+    print_certificate_fields,
+    print_crl_fields,
     verify_certificate,
-    verify_report,
-    verify_report_components,
+    verify_crl,
+)
+
+# Fetching certificates and CRLs
+from .fetch import (
+    CertFormat,
+    Endorsement,
+    ProcType,
+    cpuid_to_processor_type,
+    detect_processor_from_report,
+    fetch_ca,
+    fetch_crl,
+    fetch_vcek,
 )
 from .guest_policy import GuestPolicy
 from .platform_info import PlatformInfo
+
+# Policy validation
+from .policy import (
+    AttestationPolicy,
+    PolicyValidationError,
+    validate_report_with_policy,
+)
 from .signature import Signature
 
-__version__ = "0.2.0"
+# High-level verification functions
+from .verify import (
+    cert_verify_attestation_report,
+    policy_verify_attestation_report,
+    verify_attestation_bytes,
+    verify_attestation_report,
+    verify_certificate_chain,
+    verify_certificate_chain_with_crl,
+)
+
+__version__ = "0.3.0"
 __author__ = "Isaac Matthews"
+
+__all__ = [
+    # Core classes
+    "AttestationReport",
+    "TcbVersion",
+    "Cpuid",
+    "GuestPolicy",
+    "PlatformInfo",
+    "Signature",
+    # Certificate functions
+    "check_certificate_against_crl",
+    "load_certificates",
+    "load_crl",
+    "print_all_certs",
+    "print_certificate_fields",
+    "print_crl_fields",
+    "verify_certificate",
+    "verify_crl",
+    "cert_verify_report",
+    "cert_verify_report_components",
+    # Policy validation
+    "AttestationPolicy",
+    "PolicyValidationError",
+    "validate_report_with_policy",
+    # Fetching
+    "CertFormat",
+    "Endorsement",
+    "ProcType",
+    "cpuid_to_processor_type",
+    "detect_processor_from_report",
+    "fetch_ca",
+    "fetch_crl",
+    "fetch_vcek",
+    # High-level verification
+    "verify_attestation_bytes",
+    "verify_attestation_report",
+    "verify_certificate_chain",
+    "verify_certificate_chain_with_crl",
+    "cert_verify_attestation_report",
+    "policy_verify_attestation_report",
+]

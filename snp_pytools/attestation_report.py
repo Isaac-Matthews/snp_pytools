@@ -62,9 +62,9 @@ class AttestationReport:
     family_id: bytes
     image_id: bytes
     vmpl: int
-    sig_algo: int
+    signature_algo: int
     current_tcb: TcbVersion
-    plat_info: PlatformInfo
+    platform_info: PlatformInfo
     _author_key_en: int
     _reserved_0: int
     report_data: bytes
@@ -98,9 +98,9 @@ class AttestationReport:
         "16s"  # family_id: [u8; 16]
         "16s"  # image_id: [u8; 16]
         "I"  # vmpl: u32
-        "I"  # sig_algo: u32
+        "I"  # signature_algo: u32
         "BB4sBB"  # current_tcb: TcbVersion (bootloader: u8, tee: u8, reserved: [u8; 4], snp: u8, microcode: u8)
-        "Q"  # plat_info: PlatformInfo (u64)
+        "Q"  # platform_info: PlatformInfo (u64)
         "I"  # _author_key_en: u32
         "I"  # _reserved_0: u32
         "64s"  # report_data: [u8; 64]
@@ -142,13 +142,13 @@ class AttestationReport:
             self.family_id,
             self.image_id,
             self.vmpl,
-            self.sig_algo,
+            self.signature_algo,
             self.current_tcb.bootloader,
             self.current_tcb.tee,
             self.current_tcb._reserved,
             self.current_tcb.snp,
             self.current_tcb.microcode,
-            self.plat_info._value,
+            self.platform_info._value,
             self._author_key_en,
             self._reserved_0,
             self.report_data,
@@ -219,11 +219,11 @@ class AttestationReport:
             family_id=unpacked[3],
             image_id=unpacked[4],
             vmpl=unpacked[5],
-            sig_algo=unpacked[6],
+            signature_algo=unpacked[6],
             current_tcb=TcbVersion(
                 unpacked[7], unpacked[8], unpacked[9], unpacked[10], unpacked[11]
             ),
-            plat_info=PlatformInfo(unpacked[12]),
+            platform_info=PlatformInfo(unpacked[12]),
             _author_key_en=unpacked[13],
             _reserved_0=unpacked[14],
             report_data=unpacked[15],
@@ -283,7 +283,7 @@ class AttestationReport:
         print(f"\nFamily ID:                   {self.family_id.hex()}")
         print(f"Image ID:                    {self.image_id.hex()}")
         print(f"VMPL:                        {self.vmpl}")
-        print(f"Signature Algorithm:         {self.sig_algo}")
+        print(f"Signature Algorithm:         {self.signature_algo}")
 
         print("\nCurrent TCB:")
         print(f"  Bootloader:                {self.current_tcb.bootloader}")
@@ -293,15 +293,15 @@ class AttestationReport:
         print(f"  Microcode:                 {self.current_tcb.microcode}")
 
         print("\nPlatform Info:")
-        print(f"  SMT Enabled:               {self.plat_info.smt_enabled}")
-        print(f"  TSME Enabled:              {self.plat_info.tsme_enabled}")
-        print(f"  ECC Enabled:               {self.plat_info.ecc_enabled}")
-        print(f"  RAPL Disabled:             {self.plat_info.rapl_disabled}")
+        print(f"  SMT Enabled:               {self.platform_info.smt_enabled}")
+        print(f"  TSME Enabled:              {self.platform_info.tsme_enabled}")
+        print(f"  ECC Enabled:               {self.platform_info.ecc_enabled}")
+        print(f"  RAPL Disabled:             {self.platform_info.rapl_disabled}")
         print(
-            f"  Ciphertext Hiding Enabled: {self.plat_info.ciphertext_hiding_enabled}"
+            f"  Ciphertext Hiding Enabled: {self.platform_info.ciphertext_hiding_enabled}"
         )
-        print(f"  Alias Check Complete:      {self.plat_info.alias_check_complete}")
-        print(f"  TIO Enabled:               {self.plat_info.tio_enabled}")
+        print(f"  Alias Check Complete:      {self.platform_info.alias_check_complete}")
+        print(f"  TIO Enabled:               {self.platform_info.tio_enabled}")
 
         print(f"\nAuthor Key Enabled:          {self._author_key_en}")
         print(f"Report Data:                 {self.report_data.hex()}")

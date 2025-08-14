@@ -252,11 +252,11 @@ def verify_certificate(cert, key):
             padding=cert.signature_algorithm_parameters,
             algorithm=cert.signature_hash_algorithm,
         )
-        return True
     except InvalidSignature:
         return False
     except Exception as e:
         raise ValueError(f"Error verifying certificate: {str(e)}")
+    return True
 
 
 def verify_crl(crl, key):
@@ -277,16 +277,16 @@ def verify_crl(crl, key):
             # algorithm=crl.signature_hash_algorithm,
             algorithm=hashes.SHA384(),
         )
-        return True
     except InvalidSignature:
         return False
     except Exception as e:
         raise ValueError(f"Error verifying CRL: {str(e)}")
+    return True
 
 
-def verify_report_components(report, cert, verbose=False):
+def cert_verify_report_components(report, cert, verbose=False):
     """
-    verify_report_components
+    cert_verify_report_components
     Description: Verify components of an attestation report against a certificate
     Inputs:
         report: Attestation report object
@@ -333,9 +333,9 @@ def verify_report_components(report, cert, verbose=False):
     return True
 
 
-def verify_report(report, cert, verbose=False):
+def cert_verify_report(report, cert, verbose=False):
     """
-    verify_report
+    cert_verify_report
     Description: Verify an attestation report against a VCEK certificate
     Inputs:
         report: Attestation report object
@@ -343,7 +343,7 @@ def verify_report(report, cert, verbose=False):
         verbose: Whether to print success messages
     Output: bool: True if verification succeeds, False otherwise
     """
-    if not verify_report_components(report, cert, verbose):
+    if not cert_verify_report_components(report, cert, verbose):
         print("Error: The attestation report values do not match the VCEK certificate.")
         return False
     elif verbose:
@@ -419,6 +419,5 @@ def check_certificate_against_crl(cert, crl, verbose=False):
     except Exception as e:
         if verbose:
             print(f"Error checking CRL for certificate serial {cert_serial}: {e}")
-        # Fail safely if there are errors in checking the CRL
         return False
     return True
