@@ -20,6 +20,9 @@ from dataclasses import dataclass, fields
 from .guest_policy import GuestPolicy
 from .platform_info import PlatformInfo
 from .signature import Signature
+from .snp_logging import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -191,28 +194,29 @@ class AttestationReport:
         )
 
     @classmethod
-    def unpack(cls, binary_data, debug=False):
+    def unpack(cls, binary_data):
         """
         unpack
         Description: Create an AttestationReport instance from binary data
         Inputs:
             binary_data: bytes: Binary representation of an AttestationReport
-            debug: bool: If True, print debug information during unpacking
         Output: AttestationReport: An instance of AttestationReport
         """
+        logger.debug(f"Unpacking attestation report from {len(binary_data)} bytes")
+
         # Unpack the binary data using the format string
         unpacked = struct.unpack(cls.format_string, binary_data)
+        logger.debug(f"Successfully unpacked {len(unpacked)} fields")
 
-        # Print unpacked values for debugging
-        if debug:
-            field_names = [f.name for f in fields(cls)]
-            for i, (value, field_name) in enumerate(zip(unpacked, field_names)):
-                print(f"Index {i}: {value} - {field_name}")
-                if isinstance(value, bytes):
-                    print(f"  Hex: {value.hex()}")
+        # Log unpacked values for debugging
+        field_names = [f.name for f in fields(cls)]
+        for i, (value, field_name) in enumerate(zip(unpacked, field_names)):
+            logger.debug(f"Index {i}: {value} - {field_name}")
+            if isinstance(value, bytes):
+                logger.debug(f"  Hex: {value.hex()}")
 
         # Create and return an AttestationReport instance
-        return cls(
+        report = cls(
             version=unpacked[0],
             guest_svn=unpacked[1],
             policy=GuestPolicy(unpacked[2]),
@@ -255,6 +259,11 @@ class AttestationReport:
             _reserved_3=unpacked[50],
             signature=Signature.from_bytes(unpacked[51]),
         )
+
+        logger.info(
+            f"Successfully parsed attestation report (version: {report.version}, measurement: {report.measurement.hex()})"
+        )
+        return report
 
     def print_details(self):
         """

@@ -44,6 +44,20 @@ from .policy import (
 )
 from .signature import Signature
 
+# Logging utilities
+from .snp_logging import (
+    get_logger,
+    log_certificate_info,
+    log_network_request,
+    log_policy_validation,
+    log_section_header,
+    log_subsection_header,
+    log_verification_step,
+    setup_cli_logging,
+    setup_library_logging,
+    setup_logging,
+)
+
 # High-level verification functions
 from .verify import (
     cert_verify_attestation_report,
@@ -54,7 +68,7 @@ from .verify import (
     verify_certificate_chain_with_crl,
 )
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 __author__ = "Isaac Matthews"
 
 __all__ = [
@@ -96,4 +110,13 @@ __all__ = [
     "verify_certificate_chain_with_crl",
     "cert_verify_attestation_report",
     "policy_verify_attestation_report",
+    # Logging utilities
+    "get_logger",
+    "setup_cli_logging",
+    "setup_library_logging",
+    "setup_logging",
+    "log_verification_step",
+    "log_certificate_info",
+    "log_policy_validation",
+    "log_network_request",
 ]
