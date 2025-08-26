@@ -73,8 +73,8 @@ def main():
         report = AttestationReport.unpack(binary_data)
         logger.info("Successfully parsed attestation report")
 
-        # Print the report details (this goes to stdout, not through logging)
-        report.print_details()
+        # Log the report details
+        report.log_details()
 
     except FileNotFoundError:
         logger.error(f"File not found: {args.file}")

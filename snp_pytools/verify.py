@@ -392,7 +392,7 @@ def main():
 
         # Print report details if verbose mode is enabled
         if args.verbose:
-            report.print_details()
+            report.log_details()
 
         # Print certificate and CRL details if verbose mode is enabled
         if args.verbose and certificates:
