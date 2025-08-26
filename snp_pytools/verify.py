@@ -27,8 +27,8 @@ from .certs import (
     check_certificate_against_crl,
     load_certificates,
     load_crl,
-    print_all_certs,
-    print_crl_fields,
+    log_all_certs,
+    log_crl_fields,
     verify_certificate,
     verify_crl,
 )
@@ -397,7 +397,7 @@ def main():
         # Print certificate and CRL details if verbose mode is enabled
         if args.verbose and certificates:
             log_subsection_header("Loaded Certificates:")
-            print_all_certs(certificates)
+            log_all_certs(certificates)
 
         if args.verbose:
             # Load CRL for display
@@ -406,7 +406,7 @@ def main():
 
                 crl = load_crl(args.certs)
                 log_subsection_header("Loaded CRL:")
-                print_crl_fields(crl)
+                log_crl_fields(crl)
             except (ValueError, FileNotFoundError):
                 logger.debug("CRL not available for display")
 
