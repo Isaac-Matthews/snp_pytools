@@ -116,6 +116,7 @@ def load_crl(crl_dir):
             except ValueError:
                 raise ValueError("Unable to load CRL. It must be in DER or PEM format.")
 
+
 def log_all_certs(certs):
     """
     log_all_certs

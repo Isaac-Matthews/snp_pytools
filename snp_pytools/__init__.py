@@ -6,7 +6,7 @@ including parsing, verification, policy validation, and certificate management.
 """
 
 # Core attestation report components
-from .attestation_report import AttestationReport, Cpuid, TcbVersion
+from .attestation_report import AttestationReport, Cpuid, KeyInfo, TcbVersion, Version
 
 # Certificate and verification functions
 from .certs import (
@@ -68,7 +68,7 @@ from .verify import (
     verify_certificate_chain_with_crl,
 )
 
-__version__ = "0.4.0"
+__version__ = "0.4.1"
 __author__ = "Isaac Matthews"
 
 __all__ = [
