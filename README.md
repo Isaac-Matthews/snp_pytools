@@ -153,6 +153,52 @@ or if installed with pip use `snp-fetch ...`.
 - `--endorser`: Endorser type (vcek or vlek) for fetching VCEK or VLEK certificates
 - `-r` or `--report`: Path to the attestation report file (required for fetching VCEK)
 
+## Logging
+
+SNP PyTools includes comprehensive logging support for both library usage and command-line tools. This helps with debugging, monitoring, and auditing.
+
+### Command Line Logging
+
+All command-line tools support logging flags.
+Available logging options:
+- `-v, --verbose`: Enable verbose logging (shows DEBUG level messages)
+- `-q, --quiet`: Enable quiet mode (only WARNING and ERROR messages)
+- `--log-file PATH`: Write logs to specified file in addition to console output
+
+```bash
+# Enable verbose logging (DEBUG level)
+snp-verify -f report.bin --verbose
+
+# Enable quiet mode (WARNING level and above)
+snp-fetch ca --quiet
+
+# Save logs to file
+snp-print -f report.bin --log-file verification.log
+```
+
+
+
+### Library Logging
+
+When using snp_pytools as a library, you can configure logging to suit your application:
+
+```python
+from snp_pytools import setup_library_logging, get_logger, AttestationReport
+
+# Setup logging for library usage
+logger = setup_library_logging(level="INFO", log_file="snp_operations.log")
+
+# Use the logger
+logger.info("Starting attestation report processing")
+
+# Load and process a report - the library will automatically log key operations
+with open("report.bin", "rb") as f:
+    data = f.read()
+
+report = AttestationReport.unpack(data)  # This will log parsing progress
+logger.info("Successfully parsed attestation report")
+```
+
 ## Requirements
 
 - Python 3.6+

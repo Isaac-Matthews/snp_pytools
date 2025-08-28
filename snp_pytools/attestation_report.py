@@ -20,6 +20,9 @@ from dataclasses import dataclass, fields
 from .guest_policy import GuestPolicy
 from .platform_info import PlatformInfo
 from .signature import Signature
+from .snp_logging import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -191,28 +194,29 @@ class AttestationReport:
         )
 
     @classmethod
-    def unpack(cls, binary_data, debug=False):
+    def unpack(cls, binary_data):
         """
         unpack
         Description: Create an AttestationReport instance from binary data
         Inputs:
             binary_data: bytes: Binary representation of an AttestationReport
-            debug: bool: If True, print debug information during unpacking
         Output: AttestationReport: An instance of AttestationReport
         """
+        logger.debug(f"Unpacking attestation report from {len(binary_data)} bytes")
+
         # Unpack the binary data using the format string
         unpacked = struct.unpack(cls.format_string, binary_data)
+        logger.debug(f"Successfully unpacked {len(unpacked)} fields")
 
-        # Print unpacked values for debugging
-        if debug:
-            field_names = [f.name for f in fields(cls)]
-            for i, (value, field_name) in enumerate(zip(unpacked, field_names)):
-                print(f"Index {i}: {value} - {field_name}")
-                if isinstance(value, bytes):
-                    print(f"  Hex: {value.hex()}")
+        # Log unpacked values for debugging
+        field_names = [f.name for f in fields(cls)]
+        for i, (value, field_name) in enumerate(zip(unpacked, field_names)):
+            logger.debug(f"Index {i}: {value} - {field_name}")
+            if isinstance(value, bytes):
+                logger.debug(f"  Hex: {value.hex()}")
 
         # Create and return an AttestationReport instance
-        return cls(
+        report = cls(
             version=unpacked[0],
             guest_svn=unpacked[1],
             policy=GuestPolicy(unpacked[2]),
@@ -256,98 +260,103 @@ class AttestationReport:
             signature=Signature.from_bytes(unpacked[51]),
         )
 
-    def print_details(self):
+        logger.info(
+            f"Successfully parsed attestation report (version: {report.version}, measurement: {report.measurement.hex()})"
+        )
+        return report
+
+    def log_details(self):
         """
-        print_details
-        Description: Print a detailed representation of the AttestationReport
+        log_details
+        Description: Log a detailed representation of the AttestationReport
         Input: None
-        Output: None (prints to console)
+        Output: None (logs to logger)
         """
-        print("Attestation Report Details:")
-        print(f"Version:                     {self.version}")
-        print(f"Guest SVN:                   {self.guest_svn}")
+        logger.info("Attestation Report Details:")
+        logger.info(f"Version:                     {self.version}")
+        logger.info(f"Guest SVN:                   {self.guest_svn}")
 
-        print("\nGuest Policy:")
-        print(f"  ABI Minor:                 {self.policy.abi_minor}")
-        print(f"  ABI Major:                 {self.policy.abi_major}")
-        print(f"  SMT Allowed:               {self.policy.smt_allowed}")
-        print(f"  Migrate MA Allowed:        {self.policy.migrate_ma_allowed}")
-        print(f"  Debug Allowed:             {self.policy.debug_allowed}")
-        print(f"  Single Socket Required:    {self.policy.single_socket_required}")
-        print(f"  CXL Allowed:               {self.policy.cxl_allowed}")
-        print(f"  MEM AES 256 XTS:           {self.policy.mem_aes_256_xts}")
-        print(f"  RAPL Disabled:             {self.policy.rapl_dis}")
-        print(f"  Ciphertext Hiding:         {self.policy.ciphertext_hiding}")
-        print(f"  Page Swap Disabled:        {self.policy.page_swap_disable}")
+        logger.info("Guest Policy:")
+        logger.info(f"  ABI Minor:                 {self.policy.abi_minor}")
+        logger.info(f"  ABI Major:                 {self.policy.abi_major}")
+        logger.info(f"  SMT Allowed:               {self.policy.smt_allowed}")
+        logger.info(f"  Migrate MA Allowed:        {self.policy.migrate_ma_allowed}")
+        logger.info(f"  Debug Allowed:             {self.policy.debug_allowed}")
+        logger.info(f"  Single Socket Required:    {self.policy.single_socket_required}")
+        logger.info(f"  CXL Allowed:               {self.policy.cxl_allowed}")
+        logger.info(f"  MEM AES 256 XTS:           {self.policy.mem_aes_256_xts}")
+        logger.info(f"  RAPL Disabled:             {self.policy.rapl_dis}")
+        logger.info(f"  Ciphertext Hiding:         {self.policy.ciphertext_hiding}")
+        logger.info(f"  Page Swap Disabled:        {self.policy.page_swap_disable}")
 
-        print(f"\nFamily ID:                   {self.family_id.hex()}")
-        print(f"Image ID:                    {self.image_id.hex()}")
-        print(f"VMPL:                        {self.vmpl}")
-        print(f"Signature Algorithm:         {self.signature_algo}")
+        logger.info(f"Family ID:                   {self.family_id.hex()}")
+        logger.info(f"Image ID:                    {self.image_id.hex()}")
+        logger.info(f"VMPL:                        {self.vmpl}")
+        logger.info(f"Signature Algorithm:         {self.signature_algo}")
 
-        print("\nCurrent TCB:")
-        print(f"  Bootloader:                {self.current_tcb.bootloader}")
-        print(f"  TEE:                       {self.current_tcb.tee}")
-        print(f"  Reserved:                  {self.current_tcb._reserved.hex()}")
-        print(f"  SNP:                       {self.current_tcb.snp}")
-        print(f"  Microcode:                 {self.current_tcb.microcode}")
+        logger.info("Current TCB:")
+        logger.info(f"  Bootloader:                {self.current_tcb.bootloader}")
+        logger.info(f"  TEE:                       {self.current_tcb.tee}")
+        logger.info(f"  Reserved:                  {self.current_tcb._reserved.hex()}")
+        logger.info(f"  SNP:                       {self.current_tcb.snp}")
+        logger.info(f"  Microcode:                 {self.current_tcb.microcode}")
 
-        print("\nPlatform Info:")
-        print(f"  SMT Enabled:               {self.platform_info.smt_enabled}")
-        print(f"  TSME Enabled:              {self.platform_info.tsme_enabled}")
-        print(f"  ECC Enabled:               {self.platform_info.ecc_enabled}")
-        print(f"  RAPL Disabled:             {self.platform_info.rapl_disabled}")
-        print(
+        logger.info("Platform Info:")
+        logger.info(f"  SMT Enabled:               {self.platform_info.smt_enabled}")
+        logger.info(f"  TSME Enabled:              {self.platform_info.tsme_enabled}")
+        logger.info(f"  ECC Enabled:               {self.platform_info.ecc_enabled}")
+        logger.info(f"  RAPL Disabled:             {self.platform_info.rapl_disabled}")
+        logger.info(
             f"  Ciphertext Hiding Enabled: {self.platform_info.ciphertext_hiding_enabled}"
         )
-        print(f"  Alias Check Complete:      {self.platform_info.alias_check_complete}")
-        print(f"  TIO Enabled:               {self.platform_info.tio_enabled}")
+        logger.info(f"  Alias Check Complete:      {self.platform_info.alias_check_complete}")
+        logger.info(f"  TIO Enabled:               {self.platform_info.tio_enabled}")
 
-        print(f"\nAuthor Key Enabled:          {self._author_key_en}")
-        print(f"Report Data:                 {self.report_data.hex()}")
-        print(f"Measurement:                 {self.measurement.hex()}")
-        print(f"Host Data:                   {self.host_data.hex()}")
-        print(f"ID Key Digest:               {self.id_key_digest.hex()}")
-        print(f"Author Key Digest:           {self.author_key_digest.hex()}")
-        print(f"Report ID:                   {self.report_id.hex()}")
-        print(f"Report ID Migration Agent:   {self.report_id_ma.hex()}")
+        logger.info(f"Author Key Enabled:          {self._author_key_en}")
+        logger.info(f"Report Data:                 {self.report_data.hex()}")
+        logger.info(f"Measurement:                 {self.measurement.hex()}")
+        logger.info(f"Host Data:                   {self.host_data.hex()}")
+        logger.info(f"ID Key Digest:               {self.id_key_digest.hex()}")
+        logger.info(f"Author Key Digest:           {self.author_key_digest.hex()}")
+        logger.info(f"Report ID:                   {self.report_id.hex()}")
+        logger.info(f"Report ID Migration Agent:   {self.report_id_ma.hex()}")
 
-        print("\nReported TCB:")
-        print(f"  Bootloader:                {self.reported_tcb.bootloader}")
-        print(f"  TEE:                       {self.reported_tcb.tee}")
-        print(f"  Reserved:                  {self.reported_tcb._reserved.hex()}")
-        print(f"  SNP:                       {self.reported_tcb.snp}")
-        print(f"  Microcode:                 {self.reported_tcb.microcode}")
+        logger.info("Reported TCB:")
+        logger.info(f"  Bootloader:                {self.reported_tcb.bootloader}")
+        logger.info(f"  TEE:                       {self.reported_tcb.tee}")
+        logger.info(f"  Reserved:                  {self.reported_tcb._reserved.hex()}")
+        logger.info(f"  SNP:                       {self.reported_tcb.snp}")
+        logger.info(f"  Microcode:                 {self.reported_tcb.microcode}")
 
-        print(f"\nCPUID:")
-        print(f"  Family ID:                 {self.cpuid.family_id.hex()}")
-        print(f"  Model ID:                  {self.cpuid.model_id.hex()}")
-        print(f"  Stepping:                  {self.cpuid.stepping.hex()}")
-        print(f"  Reserved:                  {self.cpuid._reserved.hex()}")
+        logger.info(f"CPUID:")
+        logger.info(f"  Family ID:                 {self.cpuid.family_id.hex()}")
+        logger.info(f"  Model ID:                  {self.cpuid.model_id.hex()}")
+        logger.info(f"  Stepping:                  {self.cpuid.stepping.hex()}")
+        logger.info(f"  Reserved:                  {self.cpuid._reserved.hex()}")
 
-        print(f"\nChip ID:                     {self.chip_id.hex()}")
+        logger.info(f"Chip ID:                     {self.chip_id.hex()}")
 
-        print("\nCommitted TCB:")
-        print(f"  Bootloader:                {self.committed_tcb.bootloader}")
-        print(f"  TEE:                       {self.committed_tcb.tee}")
-        print(f"  Reserved:                  {self.committed_tcb._reserved.hex()}")
-        print(f"  SNP:                       {self.committed_tcb.snp}")
-        print(f"  Microcode:                 {self.committed_tcb.microcode}")
+        logger.info("Committed TCB:")
+        logger.info(f"  Bootloader:                {self.committed_tcb.bootloader}")
+        logger.info(f"  TEE:                       {self.committed_tcb.tee}")
+        logger.info(f"  Reserved:                  {self.committed_tcb._reserved.hex()}")
+        logger.info(f"  SNP:                       {self.committed_tcb.snp}")
+        logger.info(f"  Microcode:                 {self.committed_tcb.microcode}")
 
-        print(f"\nCurrent Build:               {self.current_build}")
-        print(f"Current Minor:               {self.current_minor}")
-        print(f"Current Major:               {self.current_major}")
-        print(f"Committed Build:             {self.committed_build}")
-        print(f"Committed Minor:             {self.committed_minor}")
-        print(f"Committed Major:             {self.committed_major}")
+        logger.info(f"Current Build:               {self.current_build}")
+        logger.info(f"Current Minor:               {self.current_minor}")
+        logger.info(f"Current Major:               {self.current_major}")
+        logger.info(f"Committed Build:             {self.committed_build}")
+        logger.info(f"Committed Minor:             {self.committed_minor}")
+        logger.info(f"Committed Major:             {self.committed_major}")
 
-        print("\nLaunch TCB:")
-        print(f"  Bootloader:                {self.launch_tcb.bootloader}")
-        print(f"  TEE:                       {self.launch_tcb.tee}")
-        print(f"  Reserved:                  {self.launch_tcb._reserved.hex()}")
-        print(f"  SNP:                       {self.launch_tcb.snp}")
-        print(f"  Microcode:                 {self.launch_tcb.microcode}")
+        logger.info("Launch TCB:")
+        logger.info(f"  Bootloader:                {self.launch_tcb.bootloader}")
+        logger.info(f"  TEE:                       {self.launch_tcb.tee}")
+        logger.info(f"  Reserved:                  {self.launch_tcb._reserved.hex()}")
+        logger.info(f"  SNP:                       {self.launch_tcb.snp}")
+        logger.info(f"  Microcode:                 {self.launch_tcb.microcode}")
 
-        print("\nSignature:")
-        print(f"  R component:               {self.signature.get_r().hex()}")
-        print(f"  S component:               {self.signature.get_s().hex()}")
+        logger.info("Signature:")
+        logger.info(f"  R component:               {self.signature.get_r().hex()}")
+        logger.info(f"  S component:               {self.signature.get_s().hex()}")

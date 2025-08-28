@@ -26,6 +26,10 @@ from cryptography.hazmat.primitives.asymmetric import ec, ed448, ed25519, rsa, u
 from cryptography.x509.extensions import ExtensionNotFound
 from cryptography.x509.oid import ObjectIdentifier
 
+from .snp_logging import get_logger
+
+logger = get_logger(__name__)
+
 
 # There are taken from SEV-SNP Platform Attestation Using VirTEE/SEV
 # https://www.amd.com/content/dam/amd/en/documents/developer/58217-epyc-9004-ug-platform-attestation-using-virtee-snp.pdf
@@ -112,17 +116,16 @@ def load_crl(crl_dir):
             except ValueError:
                 raise ValueError("Unable to load CRL. It must be in DER or PEM format.")
 
-
-def print_all_certs(certs):
+def log_all_certs(certs):
     """
-    print_all_certs
-    Description: Print fields of all certificates in the given dictionary
+    log_all_certs
+    Description: Log fields of all certificates in the given dictionary
     Input: certs (dict): Dictionary of certificates
     Output: None
     """
     for cert_type, cert in certs.items():
-        print(f"\n{cert_type.upper()} Certificate Fields:")
-        print_certificate_fields(cert)
+        logger.info(f"\n{cert_type.upper()} Certificate Fields:")
+        log_certificate_fields(cert)
 
 
 def get_public_key_algorithm(public_key):
@@ -177,61 +180,61 @@ def get_extension_value(cert, oid):
         return "Not present"
 
 
-def print_certificate_fields(cert):
+def log_certificate_fields(cert):
     """
-    print_certificate_fields
-    Description: Print all relevant fields of a certificate
+    log_certificate_fields
+    Description: Log all relevant fields of a certificate
     Input: cert: x509.Certificate object
     Output: None
     """
-    print(f"Subject: {cert.subject.rfc4514_string()}")
-    print(f"Issuer: {cert.issuer.rfc4514_string()}")
-    print(f"Version: {cert.version}")
-    print(f"Serial Number: {cert.serial_number}")
-    print(f"Not Valid Before: {cert.not_valid_before_utc}")
-    print(f"Not Valid After: {cert.not_valid_after_utc}")
-    print(
+    logger.info(f"Subject: {cert.subject.rfc4514_string()}")
+    logger.info(f"Issuer: {cert.issuer.rfc4514_string()}")
+    logger.info(f"Version: {cert.version}")
+    logger.info(f"Serial Number: {cert.serial_number}")
+    logger.info(f"Not Valid Before: {cert.not_valid_before_utc}")
+    logger.info(f"Not Valid After: {cert.not_valid_after_utc}")
+    logger.info(
         f"Subject Alternative Names: {get_extension_value(cert, x509.ExtensionOID.SUBJECT_ALTERNATIVE_NAME)}"
     )
-    print(f"Key Usage: {get_extension_value(cert, x509.ExtensionOID.KEY_USAGE)}")
-    print(
+    logger.info(f"Key Usage: {get_extension_value(cert, x509.ExtensionOID.KEY_USAGE)}")
+    logger.info(
         f"Extended Key Usage: {get_extension_value(cert, x509.ExtensionOID.EXTENDED_KEY_USAGE)}"
     )
-    print(f"Public Key Algorithm: {get_public_key_algorithm(cert.public_key())}")
+    logger.info(f"Public Key Algorithm: {get_public_key_algorithm(cert.public_key())}")
 
-    # Print SNP-specific extensions
+    # Log SNP-specific extensions
     for snp_oid in SnpOid:
         value = get_extension_value(cert, snp_oid.value)
         if isinstance(value, int):
-            print(f"{snp_oid.name}: {value}")
+            logger.info(f"{snp_oid.name}: {value}")
         elif isinstance(value, str):
-            print(f"{snp_oid.name}: {value}")
+            logger.info(f"{snp_oid.name}: {value}")
         else:
-            print(f"{snp_oid.name}: Unknown format")
+            logger.info(f"{snp_oid.name}: Unknown format")
 
 
-def print_crl_fields(crl):
+def log_crl_fields(crl):
     """
-    print_crl_fields
-    Description: Print information about a Certificate Revocation List
+    log_crl_fields
+    Description: Log information about a Certificate Revocation List
     Inputs:
         crl: x509.CertificateRevocationList object
     Output: None
     """
-    print(f"  Issuer: {crl.issuer.rfc4514_string()}")
-    print(f"  Last Update: {crl.last_update_utc}")
-    print(f"  Next Update: {crl.next_update_utc}")
+    logger.info(f"  Issuer: {crl.issuer.rfc4514_string()}")
+    logger.info(f"  Last Update: {crl.last_update_utc}")
+    logger.info(f"  Next Update: {crl.next_update_utc}")
 
     revoked_count = len(list(crl))
-    print(f"  Revoked Certificates: {revoked_count}")
+    logger.info(f"  Revoked Certificates: {revoked_count}")
 
     if revoked_count > 0:
-        print("  Revoked Certificate Details:")
+        logger.info("  Revoked Certificate Details:")
         for i, revoked_cert in enumerate(crl):
             if i >= 10:  # Limit output for readability
-                print(f"    ... and {revoked_count - 10} more")
+                logger.info(f"    ... and {revoked_count - 10} more")
                 break
-            print(
+            logger.info(
                 f"    Serial: {revoked_cert.serial_number}, Revoked: {revoked_cert.revocation_date_utc}"
             )
 
@@ -253,9 +256,11 @@ def verify_certificate(cert, key):
             algorithm=cert.signature_hash_algorithm,
         )
     except InvalidSignature:
+        logger.error("Invalid certificate signature.")
         return False
     except Exception as e:
-        raise ValueError(f"Error verifying certificate: {str(e)}")
+        logger.error(f"Unexpected error verifying certificate: {str(e)}")
+        return False
     return True
 
 
@@ -278,20 +283,21 @@ def verify_crl(crl, key):
             algorithm=hashes.SHA384(),
         )
     except InvalidSignature:
+        logger.error("Invalid CRL signature.")
         return False
     except Exception as e:
-        raise ValueError(f"Error verifying CRL: {str(e)}")
+        logger.error(f"Unexpected error verifying CRL: {str(e)}")
+        return False
     return True
 
 
-def cert_verify_report_components(report, cert, verbose=False):
+def cert_verify_report_components(report, cert):
     """
     cert_verify_report_components
     Description: Verify components of an attestation report against a certificate
     Inputs:
         report: Attestation report object
         cert: x509.Certificate object (VCEK)
-        verbose: Whether to print success messages
     Output: bool: True if all components match, False otherwise
     """
     # Check TCB components
@@ -307,13 +313,12 @@ def cert_verify_report_components(report, cert, verbose=False):
         report_value = getattr(report.reported_tcb, component_name.lower())
 
         if cert_value == report_value:
-            if verbose:
-                print(
-                    f"Reported TCB {component_name} from certificate matches the attestation report."
-                )
+            logger.debug(
+                f"Reported TCB {component_name} from certificate matches the attestation report."
+            )
         else:
-            print(
-                f"Error: Reported TCB {component_name} mismatch. Certificate: {cert_value}, Report: {report_value}"
+            logger.error(
+                f"Reported TCB {component_name} mismatch. Certificate: {cert_value}, Report: {report_value}"
             )
             return False
 
@@ -322,32 +327,32 @@ def cert_verify_report_components(report, cert, verbose=False):
     report_hwid = report.chip_id.hex()
 
     if cert_hwid == report_hwid:
-        if verbose:
-            print("Chip ID from certificate matches the attestation report.")
+        logger.debug("Chip ID from certificate matches the attestation report.")
     else:
-        print(
-            f"Error: Chip ID mismatch. Certificate: {cert_hwid}, Report: {report_hwid}"
+        logger.error(
+            f"Chip ID mismatch. Certificate: {cert_hwid}, Report: {report_hwid}"
         )
         return False
 
     return True
 
 
-def cert_verify_report(report, cert, verbose=False):
+def cert_verify_report(report, cert):
     """
     cert_verify_report
     Description: Verify an attestation report against a VCEK certificate
     Inputs:
         report: Attestation report object
         cert: x509.Certificate object (VCEK)
-        verbose: Whether to print success messages
     Output: bool: True if verification succeeds, False otherwise
     """
-    if not cert_verify_report_components(report, cert, verbose):
-        print("Error: The attestation report values do not match the VCEK certificate.")
+    if not cert_verify_report_components(report, cert):
+        logger.error("The attestation report values do not match the VCEK certificate.")
         return False
-    elif verbose:
-        print("Report components verified successfully against the VCEK certificate.")
+    else:
+        logger.info(
+            "Report components verified successfully against the VCEK certificate."
+        )
 
     report_bytes = report.to_bytes()
     signed_bytes = report_bytes[0:672]  # Use the first 672 bytes (0x2A0)
@@ -370,28 +375,28 @@ def cert_verify_report(report, cert, verbose=False):
 
     try:
         public_key.verify(signature, signed_bytes, ec.ECDSA(hashes.SHA384()))
-        if verbose:
-            print("VCEK signed the Attestation Report!")
         return True
     except InvalidSignature as e:
-        print(f"Error: Invalid signature. Details: {str(e)}")
+        logger.error(f"Error: Invalid signature. Details: {str(e)}")
+        return False
+    except Exception as e:
+        logger.error(f"Unexpected error during signature verification: {str(e)}")
         return False
 
 
-def check_certificate_against_crl(cert, crl, verbose=False):
+def check_certificate_against_crl(cert, crl):
     """
     check_certificate_against_crl
     Description: Check if a certificate is revoked using a Certificate Revocation List
     Inputs:
         cert: x509.Certificate object to check
         crl: x509.CertificateRevocationList object
-        verbose: Whether to print verbose output
     Output: bool: True if certificate is NOT revoked, False if it is revoked
     """
     # Check CRL is current
     current_time = datetime.datetime.now(datetime.timezone.utc)
     if crl.next_update_utc and current_time > crl.next_update_utc:
-        print(f"CRL is expired (next update field is {crl.next_update_utc})")
+        logger.error(f"CRL is expired (next update field is {crl.next_update_utc})")
         return False
 
     # Get the certificate's serial number
@@ -401,23 +406,20 @@ def check_certificate_against_crl(cert, crl, verbose=False):
     try:
         revoked_cert = crl.get_revoked_certificate_by_serial_number(cert_serial)
         if revoked_cert is not None:
-            print(
+            logger.error(
                 f"Certificate with serial {cert_serial} is REVOKED. Revocation date: {revoked_cert.revocation_date}"
             )
             try:
                 reason_ext = revoked_cert.extensions.get_extension_for_oid(
                     x509.ExtensionOID.CRL_REASON
                 )
-                print(f"  Revocation reason: {reason_ext.value.reason}")
+                logger.error(f"  Revocation reason: {reason_ext.value.reason}")
             except x509.ExtensionNotFound:
                 pass
             return False
         else:
-            if verbose:
-                print(f"Certificate with serial {cert_serial} is NOT revoked.")
+            logger.debug(f"Certificate with serial {cert_serial} is NOT revoked.")
             return True
     except Exception as e:
-        if verbose:
-            print(f"Error checking CRL for certificate serial {cert_serial}: {e}")
+        logger.error(f"Error checking CRL for certificate serial {cert_serial}: {e}")
         return False
-    return True

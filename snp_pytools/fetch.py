@@ -25,6 +25,9 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from .attestation_report import AttestationReport
+from .snp_logging import get_logger, log_network_request, setup_cli_logging
+
+logger = get_logger(__name__)
 
 # Constants for AMD Key Distribution Service (KDS)
 KDS_CERT_SITE = "https://kdsintf.amd.com"
@@ -132,15 +135,24 @@ def request_ca_kds(processor_model: ProcType, endorser: Endorsement):
     Output: List of x509.Certificate objects
     """
     url = f"{KDS_CERT_SITE}/{endorser.value.lower()}/{KDS_VERSION}/{processor_model.to_kds_url()}/{KDS_CERT_CHAIN}"
-    print(f"Fetching CA from {url}")
+
+    logger.info(f"Fetching CA certificates from AMD KDS")
+    logger.debug(f"URL: {url}")
+    log_network_request(url, "GET")
+
     session = create_retry_session()
     response = session.get(url, timeout=session.timeout)
 
+    log_network_request(url, "GET", response.status_code)
+
     if response.status_code == 200:
         certs = x509.load_pem_x509_certificates(response.content)
+        logger.info(f"Successfully fetched {len(certs)} CA certificates")
         return certs
     else:
-        raise Exception(f"Unable to fetch certificates: {response.status_code}")
+        error_msg = f"Unable to fetch certificates: HTTP {response.status_code}"
+        logger.error(error_msg)
+        raise Exception(error_msg)
 
 
 def write_cert(
@@ -159,6 +171,7 @@ def write_cert(
     """
     if not os.path.exists(certs_dir):
         os.makedirs(certs_dir)
+        logger.debug(f"Created directory: {certs_dir}")
 
     filename = f"{cert_type.lower()}.{cert_format.value}"
     filepath = os.path.join(certs_dir, filename)
@@ -169,6 +182,9 @@ def write_cert(
     elif cert_format == CertFormat.DER:
         with open(filepath, "wb") as f:
             f.write(cert.public_bytes(serialization.Encoding.DER))
+
+    logger.info(f"Saved {cert_type} certificate to: {filepath}")
+    logger.debug(f"Certificate format: {cert_format.value}")
 
 
 def fetch_ca(
@@ -242,25 +258,36 @@ def request_vcek_kds(
         f"ucodeSPL={report.reported_tcb.microcode:02}"
     )
 
-    print(f"Fetching VCEK from {url}")
+    logger.info("Fetching VCEK certificate from AMD KDS")
+    logger.debug(f"URL: {url}")
+    log_network_request(url, "GET")
+
     session = create_retry_session()
     response = session.get(url, timeout=session.timeout)
+
+    log_network_request(url, "GET", response.status_code)
 
     if response.status_code == 200:
         try:
             # Try to load as PEM
             cert = x509.load_pem_x509_certificate(response.content)
+            logger.debug("Successfully loaded VCEK certificate as PEM")
         except ValueError:
             try:
                 # If PEM fails, try to load as DER
                 cert = x509.load_der_x509_certificate(response.content)
+                logger.debug("Successfully loaded VCEK certificate as DER")
             except ValueError:
+                logger.error("Unable to load certificate in either DER or PEM format")
                 raise ValueError(
                     "Unable to load certificate. It must be in DER or PEM format."
                 )
+        logger.info("Successfully fetched VCEK certificate")
         return cert
     else:
-        raise Exception(f"Unable to fetch VCEK from URL: {response.status_code}")
+        error_msg = f"Unable to fetch VCEK: HTTP {response.status_code}"
+        logger.error(error_msg)
+        raise Exception(error_msg)
 
 
 def fetch_vcek(
@@ -290,18 +317,27 @@ def request_crl_kds(processor_model: ProcType, endorser: Endorsement):
     Inputs:
         - processor_model: ProcType
         - endorser: Endorsement
-    Output: List of x509.Certificate objects
+    Output: x509.CertificateRevocationList
     """
     url = f"{KDS_CERT_SITE}/{endorser.value.lower()}/{KDS_VERSION}/{processor_model.to_kds_url()}/{KDS_CRL}"
-    print(f"Fetching CRL from {url}")
+
+    logger.info("Fetching CRL from AMD KDS")
+    logger.debug(f"URL: {url}")
+    log_network_request(url, "GET")
+
     session = create_retry_session()
     response = session.get(url, timeout=session.timeout)
 
+    log_network_request(url, "GET", response.status_code)
+
     if response.status_code == 200:
         crl = x509.load_der_x509_crl(response.content)
+        logger.info("Successfully fetched CRL")
         return crl
     else:
-        raise Exception(f"Unable to fetch certificates: {response.status_code}")
+        error_msg = f"Unable to fetch CRL: HTTP {response.status_code}"
+        logger.error(error_msg)
+        raise Exception(error_msg)
 
 
 def fetch_crl(
@@ -333,6 +369,9 @@ def main():
         -e, --encoding: Certificate encoding (choices: pem, der; default: pem)
         -p, --processor: Processor model (choices: milan, genoa, bergamo, siena; default: genoa)
         -d, --dir: Directory to save certificates (default: current directory)
+        -v, --verbose: Enable verbose logging (flag)
+        -q, --quiet: Enable quiet mode (flag)
+        --log-file: Path to log file (optional)
         ca: Subcommand to fetch certificate authority (ARK & ASK)
             --endorser: Endorsement type for CA (choices: vcek, vlek; default: vcek)
         crl: Subcommand to fetch CRL
@@ -342,7 +381,7 @@ def main():
     Output: None (fetches and saves certificates based on user input)
     Examples:
         python fetch.py ca
-        python fetch.py ca -p milan
+        python fetch.py ca -p milan --verbose
         python fetch.py ca -p genoa -e der -d /path/to/certs
         python fetch.py ca -p bergamo -e der -d /path/to/certs --endorser vlek
         python fetch.py crl -p genoa -d /path/to/certs
@@ -376,6 +415,23 @@ def main():
         type=str,
         default=".",
         help="Directory to save certificates (default: current directory)",
+    )
+    common_parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        default=False,
+        help="Enable verbose logging",
+    )
+    common_parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        default=False,
+        help="Enable quiet mode (warnings and errors only)",
+    )
+    common_parser.add_argument(
+        "--log-file", type=str, help="Path to log file (optional)"
     )
 
     # CA subcommand
@@ -416,19 +472,49 @@ def main():
 
     args = parser.parse_args()
 
-    # Convert string arguments to enum types
-    encoding = CertFormat[args.encoding.upper()]
-    processor_model = ProcType[args.processor.upper()]
+    # Setup logging
+    logger = setup_cli_logging(
+        verbose=args.verbose, quiet=args.quiet, log_file=args.log_file
+    )
 
-    if args.command == "ca":
-        endorser = Endorsement[args.endorser.upper()]
-        fetch_ca(encoding, processor_model, args.dir, endorser)
-    elif args.command == "crl":
-        endorser = Endorsement[args.endorser.upper()]
-        fetch_crl(encoding, processor_model, args.dir, endorser)
-    elif args.command == "vcek":
-        fetch_vcek(encoding, processor_model, args.dir, args.report)
+    try:
+        # Convert string arguments to enum types
+        encoding = CertFormat[args.encoding.upper()]
+        processor_model = ProcType[args.processor.upper()]
+
+        logger.info(
+            f"Fetching {args.command} certificates for processor: {processor_model.value}"
+        )
+        logger.debug(f"Encoding: {encoding.value}, Directory: {args.dir}")
+
+        if args.command == "ca":
+            endorser = Endorsement[args.endorser.upper()]
+            logger.info(f"Fetching CA certificates with endorser: {endorser.value}")
+            fetch_ca(encoding, processor_model, args.dir, endorser)
+        elif args.command == "crl":
+            endorser = Endorsement[args.endorser.upper()]
+            logger.info(f"Fetching CRL with endorser: {endorser.value}")
+            fetch_crl(encoding, processor_model, args.dir, endorser)
+        elif args.command == "vcek":
+            logger.info(f"Fetching VCEK using report: {args.report}")
+            fetch_vcek(encoding, processor_model, args.dir, args.report)
+
+        logger.info("Certificate fetching completed successfully")
+        return 0
+
+    except KeyError as e:
+        logger.error(f"Invalid argument value: {e}")
+        return 1
+    except FileNotFoundError as e:
+        logger.error(f"File not found: {e}")
+        return 1
+    except Exception as e:
+        logger.error(f"Error fetching certificates: {e}")
+        if args.verbose:
+            logger.exception("Full traceback:")
+        return 1
 
 
 if __name__ == "__main__":
-    main()
+    exit_code = main()
+    exit(exit_code)
