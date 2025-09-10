@@ -1,3 +1,5 @@
+> ### This has moved. You can find it, along with tools for TEE attestation and security, here: [snp_pytools](https://github.com/TEE-Attestation/snp_pytools).
+
 # snp_pytools
 
 snp_pytools is a Python-based tool for verifying AMD SEV-SNP (Secure Encrypted Virtualization - Secure Nested Paging) attestation reports. This project provides functionality to parse, print, and verify attestation reports against a chain of certificates, and fetch certificates from the AMD Key Distribution Service (KDS).
